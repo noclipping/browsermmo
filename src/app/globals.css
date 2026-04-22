@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+}
+
+body {
+  font-family: var(--font-sans), sans-serif;
+}
+
+/* Dark, low-contrast scrollbars for combat / log panels (Firefox + WebKit) */
+.combat-log-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 #0a0a0c;
+}
+
+.combat-log-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.combat-log-scroll::-webkit-scrollbar-track {
+  background: #0a0a0c;
+  border-radius: 6px;
+}
+
+.combat-log-scroll::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 6px;
+  border: 2px solid #0a0a0c;
+}
+
+.combat-log-scroll::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}

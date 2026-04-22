@@ -1,0 +1,33 @@
+"use client";
+
+import { useActionState } from "react";
+import { loginAction, registerAction } from "@/app/actions/auth";
+
+function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} className="mt-1 w-full rounded bg-zinc-950 px-3 py-2" />;
+}
+
+export function RegisterForm() {
+  const [error, action, pending] = useActionState(registerAction, null);
+  return (
+    <form action={action} className="mt-6 space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+      <div><label className="text-sm">Username</label><Input name="username" minLength={3} required /></div>
+      <div><label className="text-sm">Email</label><Input name="email" type="email" required /></div>
+      <div><label className="text-sm">Password</label><Input name="password" type="password" minLength={8} required /></div>
+      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      <button disabled={pending} className="w-full rounded bg-emerald-600 py-2 font-medium disabled:opacity-70">{pending ? "Creating..." : "Create account"}</button>
+    </form>
+  );
+}
+
+export function LoginForm() {
+  const [error, action, pending] = useActionState(loginAction, null);
+  return (
+    <form action={action} className="mt-6 space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+      <div><label className="text-sm">Email</label><Input name="email" type="email" required /></div>
+      <div><label className="text-sm">Password</label><Input name="password" type="password" minLength={8} required /></div>
+      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      <button disabled={pending} className="w-full rounded bg-emerald-600 py-2 font-medium disabled:opacity-70">{pending ? "Signing in..." : "Sign in"}</button>
+    </form>
+  );
+}

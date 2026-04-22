@@ -1,0 +1,10 @@
+-- AlterTable
+ALTER TABLE "Character" ADD COLUMN "strength" INTEGER NOT NULL DEFAULT 8;
+ALTER TABLE "Character" ADD COLUMN "constitution" INTEGER NOT NULL DEFAULT 8;
+ALTER TABLE "Character" ADD COLUMN "intelligence" INTEGER NOT NULL DEFAULT 8;
+ALTER TABLE "Character" ADD COLUMN "dexterity" INTEGER NOT NULL DEFAULT 8;
+ALTER TABLE "Character" ADD COLUMN "statPoints" INTEGER NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "SoloCombatEncounter" ADD COLUMN "skillCooldownRemaining" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "SoloCombatEncounter" ADD COLUMN "playerIntelligence" INTEGER NOT NULL DEFAULT 0;

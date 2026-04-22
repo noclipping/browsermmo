@@ -1,0 +1,289 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CharacterClass {
+  WARRIOR
+  MAGE
+  ROGUE
+}
+
+enum ItemSlot {
+  WEAPON
+  HELMET
+  CHEST
+  GLOVES
+  BOOTS
+  RING
+  AMULET
+  CONSUMABLE
+}
+
+enum SoloCombatStatus {
+  ACTIVE
+  VICTORY
+  DEFEAT
+}
+
+enum EnemyIntent {
+  ATTACK
+  HEAVY_ATTACK
+  GUARD
+  RECOVER
+  /** Normal damage turn (Slay-the-Spire-style: separate from buff turns). */
+  STRIKE
+}
+
+enum Rarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+  GODLY
+}
+
+model User {
+  id           String      @id @default(cuid())
+  username     String      @unique
+  email        String      @unique
+  passwordHash String
+  createdAt    DateTime    @default(now())
+  lastSeenAt   DateTime?
+  sessions     Session[]
+  characters   Character[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+model Character {
+  id             String               @id @default(cuid())
+  name           String
+  userId         String
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class          CharacterClass
+  level          Int                  @default(1)
+  xp             Int                  @default(0)
+  hp             Int
+  maxHp          Int
+  attack         Int
+  defense        Int
+  speed          Int
+  critChance     Float                @default(0.05)
+  strength       Int                  @default(8)
+  constitution   Int                  @default(8)
+  intelligence   Int                  @default(8)
+  dexterity      Int                  @default(8)
+  statPoints     Int                  @default(0)
+  gold           Int                  @default(0)
+  /** Wins in Town Outskirts since last Sewer Fencer miniboss (victory only). */
+  outskirtsWinsSinceBoss Int          @default(0)
+  /** After this many outskirts wins, the next combat spawn is the miniboss. */
+  outskirtsBossAt        Int          @default(4)
+  /** Last time free town campfire rest was used (2m cooldown between uses). */
+  lastFreeRestAt DateTime?
+  regionId       String
+  region         Region               @relation(fields: [regionId], references: [id])
+  inventoryItems InventoryItem[]
+  equipment      CharacterEquipment[]
+  combatLogs     CombatLog[]
+  soloCombats    SoloCombatEncounter[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@unique([userId, name])
+}
+
+model Region {
+  id          String      @id @default(cuid())
+  key         String      @unique
+  name        String
+  description String
+  minLevel    Int         @default(1)
+  enemies     Enemy[]
+  dungeons    Dungeon[]
+  characters  Character[]
+}
+
+model Enemy {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  name          String
+  emoji         String
+  level         Int      @default(1)
+  hp            Int
+  attack        Int
+  defense       Int
+  speed         Int
+  xpReward      Int
+  goldMin       Int
+  goldMax       Int
+  regionId      String
+  region        Region   @relation(fields: [regionId], references: [id])
+  lootEntries   LootTableEntry[]
+  bossFor       Dungeon[]
+  combatLogs    CombatLog[]
+  soloCombats   SoloCombatEncounter[]
+  isDungeonBoss Boolean  @default(false)
+  /** Tougher adventure spawn in the same region as normal critters. */
+  isElite       Boolean  @default(false)
+  /** Scripted miniboss for adventure pacing (e.g. Sewer Fencer). */
+  isAdventureMiniBoss Boolean @default(false)
+}
+
+model SoloCombatEncounter {
+  id                 String           @id @default(cuid())
+  characterId        String
+  character          Character        @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  enemyId            String
+  enemy              Enemy            @relation(fields: [enemyId], references: [id])
+  status             SoloCombatStatus @default(ACTIVE)
+  playerHp           Int
+  playerMaxHp        Int
+  enemyHp            Int
+  enemyMaxHp         Int
+  playerAttack       Int
+  playerDefense      Int
+  playerSpeed        Int
+  playerCrit         Float
+  enemyAttack        Int
+  enemyDefense       Int
+  enemySpeed         Int
+  enemyCrit          Float            @default(0.04)
+  enemyIntent        EnemyIntent      @default(ATTACK)
+  round                    Int              @default(1)
+  skillCooldownRemaining   Int              @default(0)
+  /** Manual potion: turns before another tonic (does not tick during AUTO). */
+  potionCooldownRemaining  Int              @default(0)
+  playerIntelligence       Int              @default(0)
+  /** Fractional heal from damage dealt (0.05 = 5%). */
+  playerLifeSteal          Float            @default(0)
+  /** Multiplier bonus for skill attacks (0.2 = +20% skill power). */
+  playerSkillPowerBonus    Float            @default(0)
+  /** Multiplier applied to the enemy's next STRIKE / HEAVY_ATTACK (from Enrage). */
+  enemyPendingDamageMult   Float            @default(1)
+  /** Extra armor vs player damage until your next action resolves (from Harden). */
+  enemyPendingArmorVsPlayer Int             @default(0)
+  log                Json
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([characterId, status])
+}
+
+model Dungeon {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  name        String
+  description String
+  minLevel    Int
+  regionId    String
+  region      Region  @relation(fields: [regionId], references: [id])
+  bossEnemyId String
+  bossEnemy   Enemy   @relation(fields: [bossEnemyId], references: [id])
+}
+
+model Item {
+  id            String            @id @default(cuid())
+  key           String            @unique
+  name          String
+  emoji         String
+  slot          ItemSlot
+  rarity        Rarity
+  requiredLevel Int               @default(1)
+  requiredStrength     Int      @default(0)
+  requiredConstitution Int      @default(0)
+  requiredIntelligence Int      @default(0)
+  requiredDexterity    Int      @default(0)
+  attack        Int               @default(0)
+  defense       Int               @default(0)
+  hp            Int               @default(0)
+  speed         Int               @default(0)
+  value         Int               @default(1)
+  /** Short flavor text for tooltips. */
+  description   String            @default("")
+  /** Gold granted when sold at town shop. */
+  sellPrice     Int               @default(0)
+  inventoryRefs InventoryItem[]
+  equipmentRefs CharacterEquipment[]
+  lootEntries   LootTableEntry[]
+}
+
+model InventoryItem {
+  id          String    @id @default(cuid())
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        Item      @relation(fields: [itemId], references: [id])
+  quantity    Int       @default(1)
+  /** Smithing tier for this stack (matches CharacterEquipment.forgeLevel when moved). */
+  forgeLevel  Int       @default(0)
+  /** Rolled prefix name for legendary/godly equipment stacks. */
+  affixPrefix String?
+  bonusLifeSteal Float  @default(0)
+  bonusCritChance Float @default(0)
+  bonusSkillPower Float @default(0)
+  bonusStrength Int     @default(0)
+  bonusConstitution Int @default(0)
+  bonusIntelligence Int @default(0)
+  bonusDexterity Int    @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@unique([characterId, itemId])
+}
+
+model CharacterEquipment {
+  id          String    @id @default(cuid())
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  slot        ItemSlot
+  itemId      String?
+  item        Item?     @relation(fields: [itemId], references: [id])
+  /** Smithing reinforcements on the piece in this slot (+N suffix, stat bonuses). */
+  forgeLevel  Int       @default(0)
+  affixPrefix String?
+  bonusLifeSteal Float  @default(0)
+  bonusCritChance Float @default(0)
+  bonusSkillPower Float @default(0)
+  bonusStrength Int     @default(0)
+  bonusConstitution Int @default(0)
+  bonusIntelligence Int @default(0)
+  bonusDexterity Int    @default(0)
+
+  @@unique([characterId, slot])
+}
+
+model LootTableEntry {
+  id      String  @id @default(cuid())
+  enemyId String
+  enemy   Enemy   @relation(fields: [enemyId], references: [id], onDelete: Cascade)
+  itemId  String
+  item    Item    @relation(fields: [itemId], references: [id])
+  chance  Float
+}
+
+model CombatLog {
+  id          String    @id @default(cuid())
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  enemyId     String
+  enemy       Enemy     @relation(fields: [enemyId], references: [id])
+  outcome     String
+  turns       Int
+  log         Json
+  xpGained    Int
+  goldGained  Int
+  createdAt   DateTime  @default(now())
+}
