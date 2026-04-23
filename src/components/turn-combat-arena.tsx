@@ -12,7 +12,7 @@ import { useSfx } from "@/components/sfx-provider";
 import type { EnemyKind, SoloEncounterStartJson } from "@/lib/game/start-encounter";
 import { rarityNameClass } from "@/lib/game/item-rarity-styles";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { MAX_POTIONS_PER_BATTLE, STAT_POINTS_PER_LEVEL } from "@/lib/game/constants";
 import type { AdventureEventPayload } from "@/lib/game/adventure-start-execute";
 
@@ -118,6 +118,12 @@ const ADVENTURE_STATUS_LINES = [
 ];
 
 const MIN_ADVENTURE_ROLL_MS = 1700;
+const AUTO_STEP_MIN_MS = 1000;
+const AUTO_STEP_MAX_MS = 2000;
+
+function autoStepDelayMs() {
+  return AUTO_STEP_MIN_MS + Math.floor(Math.random() * (AUTO_STEP_MAX_MS - AUTO_STEP_MIN_MS + 1));
+}
 
 function parseShieldedAmount(lines: string[]): number | null {
   for (let i = lines.length - 1; i >= 0; i -= 1) {
@@ -220,6 +226,7 @@ export function TurnCombatArena({
     setHydrated(true);
   }, []);
   const showDebugOverlay = debugAdventureFromServer || clientUrlDebug;
+  const autoAdventureFieldId = useId();
   const logScrollRef = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<"hub" | "fight" | "ended">(initialCombat ? "fight" : "hub");
   const [busy, setBusy] = useState(false);
@@ -256,10 +263,20 @@ export function TurnCombatArena({
   const fxIdRef = useRef(1);
   const tintTimerRef = useRef<number | null>(null);
   const [adventureDebugLines, setAdventureDebugLines] = useState<string[]>([]);
+  const [autoAdventureEnabled, setAutoAdventureEnabled] = useState(false);
+  const [autoAdventureRunning, setAutoAdventureRunning] = useState(false);
   const [rollState, rollFormAction, isRollPending] = useActionState(startAdventureRollAction, null);
   const [turnState, turnFormAction, isTurnPending] = useActionState(combatTurnAction, null);
   const [fleeState, fleeFormAction, isFleePending] = useActionState(fleeCombatAction, null);
   const [eventChoiceState, eventChoiceFormAction, isEventChoicePending] = useActionState(resolveAdventureEventChoiceAction, null);
+  const rollFormRef = useRef<HTMLFormElement>(null);
+  const riskEventFormRef = useRef<HTMLFormElement>(null);
+  const safeEventFormRef = useRef<HTMLFormElement>(null);
+  const continueFormRef = useRef<HTMLFormElement>(null);
+  const autoTurnFormRef = useRef<HTMLFormElement>(null);
+  const autoTurnActionInputRef = useRef<HTMLInputElement>(null);
+  const autoTurnEncounterInputRef = useRef<HTMLInputElement>(null);
+  const autoTimerRef = useRef<number | null>(null);
   const wasRollPendingRef = useRef(false);
   const adventureRollStartedAtRef = useRef<number | null>(null);
   const processedAdventureRollAtRef = useRef<number | null>(null);
@@ -288,6 +305,20 @@ export function TurnCombatArena({
     });
   };
 
+  const clearAutoTimer = () => {
+    if (autoTimerRef.current) {
+      window.clearTimeout(autoTimerRef.current);
+      autoTimerRef.current = null;
+    }
+  };
+
+  const chooseAutoCombatAction = (): "ATTACK" | "DEFEND" | "POTION" | "SKILL" => {
+    if (enemyIntent === "HEAVY_ATTACK") return "DEFEND";
+    if (potionCount > 0 && potionCooldownRemaining <= 0 && playerHp < Math.floor(playerMax * 0.33)) return "POTION";
+    if (skillCooldownRemaining <= 0 && Math.random() < 0.35) return "SKILL";
+    return "ATTACK";
+  };
+
   useEffect(() => {
     const el = logScrollRef.current;
     if (!el) return;
@@ -296,6 +327,10 @@ export function TurnCombatArena({
     });
     return () => cancelAnimationFrame(id);
   }, [log]);
+
+  useEffect(() => {
+    return () => clearAutoTimer();
+  }, []);
 
   useEffect(() => {
     if (!(busy && phase === "hub")) return;
@@ -496,6 +531,25 @@ export function TurnCombatArena({
     if (processedFleeAtRef.current === fleeState.rolledAt) return;
     processedFleeAtRef.current = fleeState.rolledAt;
     if (!fleeState.ok) {
+      const defeatFromFlee = fleeState.error.toLowerCase().includes("defeated");
+      if (defeatFromFlee) {
+        const defeatLog = [...log, "☠ You fail to escape and are dragged back to town."];
+        setEnded({
+          status: "ENDED",
+          outcome: "DEFEAT",
+          round,
+          log: defeatLog,
+          potionCount,
+          finalHp: Math.max(1, Math.floor(playerMax * 0.35)),
+          returnedToTown: true,
+        });
+        setLog(defeatLog);
+        setEncounterId(null);
+        setPhase("ended");
+        setError(null);
+        router.refresh();
+        return;
+      }
       setError(fleeState.error);
       refreshPreservingScroll();
       return;
@@ -515,7 +569,7 @@ export function TurnCombatArena({
     flashTint("flee");
     setError(null);
     router.refresh();
-  }, [fleeState]);
+  }, [fleeState, log, round, potionCount, playerMax, router]);
 
   const spawnFx = (params: Omit<CombatFx, "id">) => {
     const id = fxIdRef.current;
@@ -607,6 +661,65 @@ export function TurnCombatArena({
 
   const combatFormBusy = busy || isTurnPending || isFleePending || isEventChoicePending;
 
+  useEffect(() => {
+    clearAutoTimer();
+    if (!autoAdventureEnabled) {
+      setAutoAdventureRunning(false);
+      return;
+    }
+    if (phase === "ended" && ended?.outcome === "DEFEAT") {
+      setAutoAdventureRunning(false);
+      return;
+    }
+    if (busy || isRollPending || isTurnPending || isEventChoicePending || isFleePending) {
+      setAutoAdventureRunning(true);
+      return;
+    }
+
+    const run = () => {
+      if (!autoAdventureEnabled) return;
+      if (phase === "hub") {
+        if (pendingEvent) {
+          const takeRisk = Math.random() < 0.8;
+          (takeRisk ? riskEventFormRef.current : safeEventFormRef.current)?.requestSubmit();
+          return;
+        }
+        rollFormRef.current?.requestSubmit();
+        return;
+      }
+      if (phase === "fight" && encounterId) {
+        const action = chooseAutoCombatAction();
+        if (autoTurnActionInputRef.current) autoTurnActionInputRef.current.value = action;
+        if (autoTurnEncounterInputRef.current) autoTurnEncounterInputRef.current.value = encounterId;
+        autoTurnFormRef.current?.requestSubmit();
+        return;
+      }
+      if (phase === "ended" && ended && ended.outcome !== "DEFEAT") {
+        continueFormRef.current?.requestSubmit();
+      }
+    };
+
+    setAutoAdventureRunning(true);
+    autoTimerRef.current = window.setTimeout(run, autoStepDelayMs());
+  }, [
+    autoAdventureEnabled,
+    phase,
+    ended,
+    pendingEvent,
+    encounterId,
+    busy,
+    isRollPending,
+    isTurnPending,
+    isEventChoicePending,
+    isFleePending,
+    enemyIntent,
+    potionCount,
+    potionCooldownRemaining,
+    playerHp,
+    playerMax,
+    skillCooldownRemaining,
+  ]);
+
   return (
     <div className="relative isolate rounded-2xl border-2 border-amber-900/50 bg-linear-to-b from-zinc-900 via-zinc-950 to-black p-1 shadow-[0_0_40px_rgba(0,0,0,0.6)]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(180,83,9,0.12),transparent_55%)]" />
@@ -651,6 +764,37 @@ export function TurnCombatArena({
           ) : null}
         </header>
 
+        <div className="mb-4 rounded-lg border border-zinc-800/80 bg-zinc-900/35 px-3 py-2.5">
+          <label htmlFor={autoAdventureFieldId} className="flex cursor-pointer items-start gap-2.5 text-xs text-zinc-300">
+            <input
+              id={autoAdventureFieldId}
+              type="checkbox"
+              checked={autoAdventureEnabled}
+              onChange={(e) => setAutoAdventureEnabled(e.target.checked)}
+              className="peer sr-only"
+            />
+            <span
+              className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-zinc-500/85 bg-zinc-600/75 shadow-inner transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-amber-500/35 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-zinc-950 peer-checked:border-amber-500/90 peer-checked:bg-amber-600 peer-checked:shadow-none peer-checked:[&_svg]:opacity-100"
+              aria-hidden
+            >
+              <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 text-amber-50 opacity-0 transition-opacity duration-150" fill="none" aria-hidden>
+                <path d="M2.5 6L5 8.5l4.5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="min-w-0 flex-1 leading-snug">
+              <span className="font-medium text-zinc-200">Auto adventure</span>
+              {autoAdventureEnabled ? (
+                <span className="ml-1.5 text-[10px] uppercase tracking-wider text-amber-300">
+                  {autoAdventureRunning ? "running" : "armed"}
+                </span>
+              ) : null}
+              <span className="mt-1 block text-[11px] font-normal text-zinc-500">
+                Auto-picks events and performs combat actions every 1–2 seconds.
+              </span>
+            </span>
+          </label>
+        </div>
+
         {error ? <p className="mb-3 rounded-md border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-300">{error}</p> : null}
 
         {phase === "hub" ? (
@@ -659,28 +803,28 @@ export function TurnCombatArena({
               Each outing is a surprise: loose coin, a tonic in the brush, or a fight. In combat, enemy intent is telegraphed — strike, brace, or sip.
             </p>
             {pendingEvent ? (
-              <div className="rounded-lg border border-sky-900/45 bg-sky-950/20 p-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-sky-400/90">{pendingEvent.title}</p>
-                <p className="mt-1 text-sm text-zinc-300">{pendingEvent.prompt}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <form action={eventChoiceFormAction}>
+              <div className="mx-auto max-w-xl rounded-xl border border-zinc-700/55 bg-zinc-900/50 px-4 py-5 text-center shadow-inner sm:px-6">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500/90">{pendingEvent.title}</p>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-300">{pendingEvent.prompt}</p>
+                <div className="mt-5 flex flex-col items-stretch gap-2.5 sm:flex-row sm:justify-center sm:gap-3">
+                  <form ref={safeEventFormRef} action={eventChoiceFormAction} className="min-w-0 sm:flex-1 sm:max-w-56">
                     <input type="hidden" name="kind" value={pendingEvent.kind} />
                     <input type="hidden" name="choice" value="SAFE" />
                     <button
                       type="submit"
                       disabled={isEventChoicePending}
-                      className="rounded-lg border border-emerald-800/60 bg-emerald-950/35 px-3 py-2 text-xs font-semibold text-emerald-100 enabled:hover:bg-emerald-900/35 disabled:opacity-40"
+                      className="w-full touch-manipulation rounded-lg border border-zinc-600/80 bg-zinc-800/70 px-3 py-2.5 text-xs font-semibold leading-snug text-zinc-100 shadow-sm transition-colors enabled:hover:border-zinc-500 enabled:hover:bg-zinc-700/70 disabled:opacity-40"
                     >
                       {pendingEvent.safeLabel}
                     </button>
                   </form>
-                  <form action={eventChoiceFormAction}>
+                  <form ref={riskEventFormRef} action={eventChoiceFormAction} className="min-w-0 sm:flex-1 sm:max-w-56">
                     <input type="hidden" name="kind" value={pendingEvent.kind} />
                     <input type="hidden" name="choice" value="RISK" />
                     <button
                       type="submit"
                       disabled={isEventChoicePending}
-                      className="rounded-lg border border-rose-800/60 bg-rose-950/35 px-3 py-2 text-xs font-semibold text-rose-100 enabled:hover:bg-rose-900/35 disabled:opacity-40"
+                      className="w-full touch-manipulation rounded-lg border border-amber-800/55 bg-amber-950/45 px-3 py-2.5 text-xs font-semibold leading-snug text-amber-50 shadow-sm transition-colors enabled:hover:border-amber-600/60 enabled:hover:bg-amber-900/40 disabled:opacity-40"
                     >
                       {pendingEvent.riskLabel}
                     </button>
@@ -707,6 +851,7 @@ export function TurnCombatArena({
             ) : null}
             {!pendingEvent ? (
               <form
+                ref={rollFormRef}
                 action={rollFormAction}
                 className="w-full"
                 onSubmit={(e) => {
@@ -921,6 +1066,11 @@ export function TurnCombatArena({
           </div>
         ) : null}
 
+        <form ref={autoTurnFormRef} action={turnFormAction} className="hidden">
+          <input ref={autoTurnEncounterInputRef} type="hidden" name="encounterId" value={encounterId ?? ""} />
+          <input ref={autoTurnActionInputRef} type="hidden" name="action" value="ATTACK" />
+        </form>
+
         {phase === "ended" && ended ? (
           <div className="space-y-4 text-center">
             <div
@@ -1020,25 +1170,28 @@ export function TurnCombatArena({
               >
                 Return to town
               </button>
-              <form
-                action={rollFormAction}
-                className="inline"
-                onSubmit={(e) => {
-                  if (busy || isRollPending) {
-                    e.preventDefault();
-                    return;
-                  }
-                  pushAdventureDebug("ended: form submit → startAdventureRollAction");
-                }}
-              >
-                <button
-                  type="submit"
-                  aria-busy={busy || isRollPending}
-                  className={`min-h-11 touch-manipulation rounded-lg border border-amber-800 bg-amber-950/40 px-6 py-3 text-sm font-bold text-amber-100 hover:bg-amber-900/40 ${busy || isRollPending ? "cursor-wait opacity-55" : "cursor-pointer opacity-100"}`}
+              {ended.outcome !== "DEFEAT" ? (
+                <form
+                  ref={continueFormRef}
+                  action={rollFormAction}
+                  className="inline"
+                  onSubmit={(e) => {
+                    if (busy || isRollPending) {
+                      e.preventDefault();
+                      return;
+                    }
+                    pushAdventureDebug("ended: form submit → startAdventureRollAction");
+                  }}
                 >
-                  Continue adventuring
-                </button>
-              </form>
+                  <button
+                    type="submit"
+                    aria-busy={busy || isRollPending}
+                    className={`min-h-11 touch-manipulation rounded-lg border border-amber-800 bg-amber-950/40 px-6 py-3 text-sm font-bold text-amber-100 hover:bg-amber-900/40 ${busy || isRollPending ? "cursor-wait opacity-55" : "cursor-pointer opacity-100"}`}
+                  >
+                    Continue adventuring
+                  </button>
+                </form>
+              ) : null}
             </div>
           </div>
         ) : null}

@@ -411,9 +411,12 @@ export async function unequipSlotAction(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
-const sellSchema = z.object({ itemId: z.string().min(1) });
+const sellSchema = z.object({
+  itemId: z.string().min(1),
+  amount: z.enum(["ONE", "ALL"]).optional(),
+});
 
-/** Town shop: sell one stack unit for sellPrice gold. Blocked if equipped or in combat. */
+/** Town shop: sell one or the full stack for sellPrice gold each. Blocked if equipped or in combat. */
 export async function sellItemAction(formData: FormData) {
   const user = await requireUser();
   const character = await requireCharacter(user.id);
@@ -421,7 +424,7 @@ export async function sellItemAction(formData: FormData) {
   if (!town || character.regionId !== town.id) return;
   if (!(await assertNoActiveCombat(character.id))) return;
 
-  const parsed = sellSchema.safeParse({ itemId: formData.get("itemId") });
+  const parsed = sellSchema.safeParse({ itemId: formData.get("itemId"), amount: formData.get("amount") });
   if (!parsed.success) return;
 
   const inv = await prisma.inventoryItem.findUnique({
@@ -436,15 +439,19 @@ export async function sellItemAction(formData: FormData) {
   });
   if (worn) return;
 
+  const sellAll = parsed.data.amount === "ALL";
+  const sellQty = sellAll ? inv.quantity : 1;
+  const goldGain = inv.item.sellPrice * sellQty;
+
   await prisma.$transaction(async (tx) => {
-    if (inv.quantity <= 1) {
+    if (sellQty >= inv.quantity) {
       await tx.inventoryItem.delete({ where: { id: inv.id } });
     } else {
-      await tx.inventoryItem.update({ where: { id: inv.id }, data: { quantity: { decrement: 1 } } });
+      await tx.inventoryItem.update({ where: { id: inv.id }, data: { quantity: { decrement: sellQty } } });
     }
     await tx.character.update({
       where: { id: character.id },
-      data: { gold: { increment: inv.item.sellPrice } },
+      data: { gold: { increment: goldGain } },
     });
   });
 

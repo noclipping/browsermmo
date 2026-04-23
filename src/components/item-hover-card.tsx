@@ -1,6 +1,6 @@
 "use client";
 
-import { forgedStatsForEntry } from "@/lib/game/item-affixes";
+import { forgedAffixScaledBonuses, forgedStatsForEntry } from "@/lib/game/item-affixes";
 import type { ItemTooltipFields } from "@/lib/game/item-tooltip-text";
 import { normalizeForgeLevel } from "@/lib/game/item-display";
 import { formatItemStatBlock } from "@/lib/game/item-tooltip-text";
@@ -68,18 +68,30 @@ function buildCombinedStats(params: {
     rarity: params.item.rarity,
     forgeLevel: params.forgeLevel,
   });
+  const affix = forgedAffixScaledBonuses(
+    {
+      bonusLifeSteal: params.bonusLifeSteal,
+      bonusCritChance: params.bonusCritChance,
+      bonusSkillPower: params.bonusSkillPower,
+      bonusStrength: params.bonusStrength,
+      bonusConstitution: params.bonusConstitution,
+      bonusIntelligence: params.bonusIntelligence,
+      bonusDexterity: params.bonusDexterity,
+    },
+    { forgeLevel: params.forgeLevel, rarity: params.item.rarity },
+  );
   return {
     attack: params.item.attack + forged.attack,
     defense: params.item.defense + forged.defense,
     hp: params.item.hp + forged.hp,
     speed: params.item.speed,
-    lifeSteal: params.bonusLifeSteal,
-    critChance: params.bonusCritChance,
-    skillPower: params.bonusSkillPower,
-    strength: params.bonusStrength,
-    constitution: params.bonusConstitution,
-    intelligence: params.bonusIntelligence,
-    dexterity: params.bonusDexterity,
+    lifeSteal: affix.bonusLifeSteal,
+    critChance: affix.bonusCritChance,
+    skillPower: affix.bonusSkillPower,
+    strength: affix.bonusStrength,
+    constitution: affix.bonusConstitution,
+    intelligence: affix.bonusIntelligence,
+    dexterity: affix.bonusDexterity,
   };
 }
 
@@ -111,6 +123,32 @@ export function ItemHoverCard({
   compareAgainst = null,
 }: Props) {
   const fl = normalizeForgeLevel(forgeLevel);
+  const scaledAffix = useMemo(
+    () =>
+      forgedAffixScaledBonuses(
+        {
+          bonusLifeSteal,
+          bonusCritChance,
+          bonusSkillPower,
+          bonusStrength,
+          bonusConstitution,
+          bonusIntelligence,
+          bonusDexterity,
+        },
+        { forgeLevel: fl, rarity: item.rarity },
+      ),
+    [
+      fl,
+      item.rarity,
+      bonusLifeSteal,
+      bonusCritChance,
+      bonusSkillPower,
+      bonusStrength,
+      bonusConstitution,
+      bonusIntelligence,
+      bonusDexterity,
+    ],
+  );
   const req = formatItemStatRequirements(item as Parameters<typeof formatItemStatRequirements>[0]);
   const stats = formatItemStatBlock(item, fl);
   const rootRef = useRef<HTMLSpanElement>(null);
@@ -118,13 +156,13 @@ export function ItemHoverCard({
   const [hovered, setHovered] = useState(false);
   const [tooltipStyle, setTooltipStyle] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const affixLines = [
-    bonusLifeSteal > 0 ? `Lifesteal +${(bonusLifeSteal * 100).toFixed(1)}%` : null,
-    bonusCritChance > 0 ? `Crit +${(bonusCritChance * 100).toFixed(1)}%` : null,
-    bonusSkillPower > 0 ? `Skill power +${(bonusSkillPower * 100).toFixed(1)}%` : null,
-    bonusStrength > 0 ? `STR +${bonusStrength}` : null,
-    bonusConstitution > 0 ? `CON +${bonusConstitution}` : null,
-    bonusIntelligence > 0 ? `INT +${bonusIntelligence}` : null,
-    bonusDexterity > 0 ? `DEX +${bonusDexterity}` : null,
+    scaledAffix.bonusLifeSteal > 0 ? `Lifesteal +${(scaledAffix.bonusLifeSteal * 100).toFixed(1)}%` : null,
+    scaledAffix.bonusCritChance > 0 ? `Crit +${(scaledAffix.bonusCritChance * 100).toFixed(1)}%` : null,
+    scaledAffix.bonusSkillPower > 0 ? `Skill power +${(scaledAffix.bonusSkillPower * 100).toFixed(1)}%` : null,
+    scaledAffix.bonusStrength > 0 ? `STR +${scaledAffix.bonusStrength}` : null,
+    scaledAffix.bonusConstitution > 0 ? `CON +${scaledAffix.bonusConstitution}` : null,
+    scaledAffix.bonusIntelligence > 0 ? `INT +${scaledAffix.bonusIntelligence}` : null,
+    scaledAffix.bonusDexterity > 0 ? `DEX +${scaledAffix.bonusDexterity}` : null,
   ].filter(Boolean) as string[];
   const currentStats = useMemo(
     () =>

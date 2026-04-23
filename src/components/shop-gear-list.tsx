@@ -31,9 +31,11 @@ export function ShopGearList({
   rows,
   buyAction,
   equippedBySlot,
+  defaultPlaystyle,
 }: {
   rows: ShopGearClientRow[];
   buyAction: (formData: FormData) => Promise<void>;
+  defaultPlaystyle: ShopPlaystyle;
   equippedBySlot: Partial<
     Record<
       string,
@@ -52,7 +54,7 @@ export function ShopGearList({
     >
   >;
 }) {
-  const [classOn, setClassOn] = useState(() => new Set<ShopPlaystyle>(["WARRIOR", "ROGUE", "MAGE", "NEUTRAL"]));
+  const [classOn, setClassOn] = useState(() => new Set<ShopPlaystyle>([defaultPlaystyle]));
   const [statOn, setStatOn] = useState(() => new Set<ShopStatTag>(["STR", "DEX", "INT", "CON"]));
 
   const visible = useMemo(() => {
@@ -102,7 +104,7 @@ export function ShopGearList({
           </div>
         </div>
         <p className="text-xs text-zinc-600">
-          Showing {visible.length} of {rows.length} listings. Uncheck a kit or stat to narrow the list.
+          Showing {visible.length} of {rows.length} listings. Toggle kits and stat gates to widen or narrow stock.
         </p>
       </div>
 
@@ -114,10 +116,12 @@ export function ShopGearList({
             const { item } = row;
             const blocked = row.purchaseBlock !== null;
             const equippedSameSlot = equippedBySlot[item.slot] ?? null;
-            const compareAgainst =
-              equippedSameSlot && equippedSameSlot.item.id !== item.id
-                ? equippedSameSlot
-                : null;
+            const compareAgainst = equippedSameSlot
+              ? {
+                  ...equippedSameSlot,
+                  forgeLevel: equippedSameSlot.forgeLevel ?? undefined,
+                }
+              : null;
             return (
               <li
                 key={item.id}

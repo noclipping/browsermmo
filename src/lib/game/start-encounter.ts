@@ -10,6 +10,7 @@ export function enemyKindFromRow(enemy: { isElite: boolean; isAdventureMiniBoss:
 import { CLASS_SKILLS, HEALTH_POTION_ITEM_KEY, MAX_POTIONS_PER_BATTLE, POTION_COOLDOWN_AFTER_USE_TURNS } from "@/lib/game/constants";
 import { computeFleeChance } from "@/lib/game/combat-flee-execute";
 import { openingLine, rollEnemyIntent } from "@/lib/game/combat-turn";
+import { forgedAffixScaledBonuses } from "@/lib/game/item-affixes";
 import { buildCharacterStats } from "@/lib/game/stats";
 
 export type SoloEncounterStartJson = {
@@ -71,13 +72,25 @@ export async function createSoloEncounter(
   const gearAffixes = equipment.reduce(
     (acc, entry) => {
       if (!entry.item) return acc;
-      acc.lifeSteal += entry.bonusLifeSteal ?? 0;
-      acc.crit += entry.bonusCritChance ?? 0;
-      acc.skillPower += entry.bonusSkillPower ?? 0;
-      acc.strength += entry.bonusStrength ?? 0;
-      acc.constitution += entry.bonusConstitution ?? 0;
-      acc.intelligence += entry.bonusIntelligence ?? 0;
-      acc.dexterity += entry.bonusDexterity ?? 0;
+      const affix = forgedAffixScaledBonuses(
+        {
+          bonusLifeSteal: entry.bonusLifeSteal ?? 0,
+          bonusCritChance: entry.bonusCritChance ?? 0,
+          bonusSkillPower: entry.bonusSkillPower ?? 0,
+          bonusStrength: entry.bonusStrength ?? 0,
+          bonusConstitution: entry.bonusConstitution ?? 0,
+          bonusIntelligence: entry.bonusIntelligence ?? 0,
+          bonusDexterity: entry.bonusDexterity ?? 0,
+        },
+        { forgeLevel: entry.forgeLevel ?? 0, rarity: entry.item.rarity },
+      );
+      acc.lifeSteal += affix.bonusLifeSteal;
+      acc.crit += affix.bonusCritChance;
+      acc.skillPower += affix.bonusSkillPower;
+      acc.strength += affix.bonusStrength;
+      acc.constitution += affix.bonusConstitution;
+      acc.intelligence += affix.bonusIntelligence;
+      acc.dexterity += affix.bonusDexterity;
       return acc;
     },
     {

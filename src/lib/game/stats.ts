@@ -8,7 +8,7 @@ import {
   MAX_CRIT_FROM_STATS,
   STR_ATK_FACTOR,
 } from "@/lib/game/constants";
-import { forgedStatsForEntry } from "@/lib/game/item-affixes";
+import { forgedAffixScaledBonuses, forgedStatsForEntry } from "@/lib/game/item-affixes";
 
 type Equipped = CharacterEquipment & { item: Item | null };
 
@@ -80,13 +80,25 @@ export function buildCharacterStats(character: Character, equipment: Equipped[])
       acc.hp += entry.item.hp;
       acc.defense += forged.defense;
       acc.hp += forged.hp;
-      acc.lifeSteal += entry.bonusLifeSteal ?? 0;
-      acc.crit += entry.bonusCritChance ?? 0;
-      acc.skillPower += entry.bonusSkillPower ?? 0;
-      acc.strength += entry.bonusStrength ?? 0;
-      acc.constitution += entry.bonusConstitution ?? 0;
-      acc.intelligence += entry.bonusIntelligence ?? 0;
-      acc.dexterity += entry.bonusDexterity ?? 0;
+      const affix = forgedAffixScaledBonuses(
+        {
+          bonusLifeSteal: entry.bonusLifeSteal ?? 0,
+          bonusCritChance: entry.bonusCritChance ?? 0,
+          bonusSkillPower: entry.bonusSkillPower ?? 0,
+          bonusStrength: entry.bonusStrength ?? 0,
+          bonusConstitution: entry.bonusConstitution ?? 0,
+          bonusIntelligence: entry.bonusIntelligence ?? 0,
+          bonusDexterity: entry.bonusDexterity ?? 0,
+        },
+        { forgeLevel: entry.forgeLevel ?? 0, rarity: entry.item.rarity },
+      );
+      acc.lifeSteal += affix.bonusLifeSteal;
+      acc.crit += affix.bonusCritChance;
+      acc.skillPower += affix.bonusSkillPower;
+      acc.strength += affix.bonusStrength;
+      acc.constitution += affix.bonusConstitution;
+      acc.intelligence += affix.bonusIntelligence;
+      acc.dexterity += affix.bonusDexterity;
       return acc;
     },
     {

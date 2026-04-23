@@ -83,8 +83,8 @@ function eventPayloadFor(kind: AdventureEventKind): AdventureEventPayload {
       kind,
       title: "Unsteady Rock",
       prompt: "A loose rock teeters over a glinting crevice.",
-      safeLabel: "Continue adventuring (ignore it)",
-      riskLabel: "Take the risk and see",
+      safeLabel: "Give the crevice a wide berth",
+      riskLabel: "Wedge the rock and reach inside",
     };
   }
   if (kind === "GOLD") {
@@ -92,16 +92,16 @@ function eventPayloadFor(kind: AdventureEventKind): AdventureEventPayload {
       kind,
       title: "Locked Cache",
       prompt: "A weathered lockbox sits half-buried in mud.",
-      safeLabel: "Continue adventuring (ignore it)",
-      riskLabel: "Take the risk and see",
+      safeLabel: "Leave the mud to swallow it",
+      riskLabel: "Try to spring the latch",
     };
   }
   return {
     kind,
     title: "Old Monument",
     prompt: "A fractured monument hums with dormant runes.",
-    safeLabel: "Continue adventuring (ignore it)",
-    riskLabel: "Take the risk and see",
+    safeLabel: "Admire the stones from a distance",
+    riskLabel: "Lay a hand on the carved runes",
   };
 }
 
@@ -273,12 +273,13 @@ export async function executeAdventureStart(character: Character): Promise<Adven
   let kind = rollAdventureKind(region.key);
 
   if (kind === "POTION" || kind === "GOLD" || kind === "XP") {
+    const event = eventPayloadFor(kind);
     return {
       ok: true,
       body: {
         outcome: "EVENT",
-        event: eventPayloadFor(kind),
-        log: [regionFlavorLine(region.key), eventPayloadFor(kind).prompt],
+        event,
+        log: [regionFlavorLine(region.key), event.prompt],
       },
     };
   }

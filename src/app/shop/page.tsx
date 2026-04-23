@@ -24,6 +24,7 @@ import {
   shopStatTagsFromItem,
   shopStoneBuyPrice,
   sortShopEquipment,
+  type ShopPlaystyle,
   type ShopGearClientRow,
 } from "@/lib/game/shop";
 import { ItemHoverCard } from "@/components/item-hover-card";
@@ -130,6 +131,8 @@ export default async function ShopPage() {
   }
   const sellableInventory = inventory.filter((inv) => inv.item.sellPrice >= 1 && !equippedItemIds.has(inv.itemId));
   const effective = buildCharacterStats(character, equipment);
+  const classDefaultFilter: ShopPlaystyle =
+    character.class === "WARRIOR" ? "WARRIOR" : character.class === "MAGE" ? "MAGE" : "ROGUE";
 
   return (
     <div className="min-h-screen bg-[#0c0a09] bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(20,83,45,0.2),transparent)]">
@@ -171,111 +174,134 @@ export default async function ShopPage() {
             </header>
 
             <section className="rounded-xl border border-emerald-700/40 bg-emerald-950/20 p-5">
-          <h2 className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/95">Apothecary (front counter)</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Tonics are your fast heal item. Price scales with your level tier (current tonic: {tonicPrice}g). Carry cap:{" "}
-            {MAX_POTIONS_IN_PACK}.
-          </p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
-            <form action={buyPotionAction}>
-              <button
-                type="submit"
-                disabled={character.gold < tonicPrice || tonicFull}
-                title={tonicFull ? `Pack holds at most ${MAX_POTIONS_IN_PACK} tonics.` : undefined}
-                className="w-full rounded-lg border border-emerald-700/70 bg-emerald-900/40 px-4 py-3 text-sm font-bold text-emerald-50 enabled:hover:bg-emerald-800/45 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Buy tonic now - {tonicPrice}g ({tonicCount}/{MAX_POTIONS_IN_PACK})
-              </button>
-            </form>
-            <p className="text-right font-mono text-xs text-emerald-200/85">Tier {tier + 1} pricing active</p>
-          </div>
-          <div className="mt-3 border-t border-emerald-900/30 pt-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-violet-300/85">Smithing</p>
-            <p className="mt-1 text-xs text-zinc-500">Smithing stones also scale by level tier (current: {stonePrice}g).</p>
-            <form action={buySmithingStoneAction}>
-              <button
-                type="submit"
-                disabled={character.gold < stonePrice}
-                className="mt-2 rounded-lg border border-violet-800/60 bg-violet-950/30 px-4 py-2 text-sm font-semibold text-violet-100 enabled:hover:bg-violet-900/35 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Buy smithing stone — {stonePrice}g
-              </button>
-            </form>
-          </div>
-            </section>
-
-            <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-5">
-          <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Common gear — {recommendedRegion.name}</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Buy price scales with stats and requirements. Use filters to focus a kit or stat gate; hover a name for full
-            stats.
-          </p>
-          {gearRows.length === 0 ? (
-            <p className="mt-4 text-sm text-zinc-500">No common stock is defined for this tier in the database.</p>
-          ) : (
-            <div className="mt-4">
-              <ShopGearList rows={gearRows} buyAction={buyShopEquipmentAction} equippedBySlot={equippedBySlot} />
-            </div>
-          )}
-            </section>
-
-            <section className="rounded-xl border border-amber-900/35 bg-amber-950/10 px-5 py-4 shadow-md">
-          <h2 className="text-[10px] font-bold uppercase tracking-widest text-amber-600/90">Buyback</h2>
-          <p className="mt-1 text-sm text-zinc-400">
-            Sell spare gear from your pack (hover for stats and price). Worn items must be unequipped first.
-          </p>
-          <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
-            {sellableInventory.length ? (
-              sellableInventory.map((entry) => (
-                (() => {
-                  const equippedSameSlot = equippedBySlot[entry.item.slot] ?? null;
-                  const compareAgainst =
-                    equippedSameSlot && equippedSameSlot.item.id !== entry.item.id
-                      ? equippedSameSlot
-                      : null;
-                  return (
-                <div
-                  key={entry.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-800 bg-black/30 px-3 py-2 text-sm"
-                >
-                  <span>
-                    <ItemHoverCard
-                      item={entry.item}
-                      forgeLevel={entry.forgeLevel}
-                      affixPrefix={entry.affixPrefix}
-                      bonusLifeSteal={entry.bonusLifeSteal}
-                      bonusCritChance={entry.bonusCritChance}
-                      bonusSkillPower={entry.bonusSkillPower}
-                      bonusStrength={entry.bonusStrength}
-                      bonusConstitution={entry.bonusConstitution}
-                      bonusIntelligence={entry.bonusIntelligence}
-                      bonusDexterity={entry.bonusDexterity}
-                      compareAgainst={compareAgainst}
-                    >
-                      <span className={`font-medium ${rarityNameClass(entry.item.rarity)}`}>
-                        {entry.item.emoji} {itemDisplayName(entry.item, entry.forgeLevel, entry.affixPrefix)}
-                      </span>
-                    </ItemHoverCard>
-                    <span className="text-zinc-500"> ×{entry.quantity}</span>
-                    <span className="ml-2 font-mono text-xs text-amber-200/80">{entry.item.sellPrice}g each</span>
-                  </span>
-                  <form action={sellItemAction}>
-                    <input type="hidden" name="itemId" value={entry.item.id} />
+              <h2 className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/95">Front counter</h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Quick consumables and crafting stock. Prices scale by your recommended tier.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-emerald-800/50 bg-black/25 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-300/90">🧪 Crimson tonic</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Fast out-of-combat heal. Carry cap: {MAX_POTIONS_IN_PACK}.
+                  </p>
+                  <form action={buyPotionAction} className="mt-3">
                     <button
                       type="submit"
-                      className="rounded-lg border border-amber-800/60 bg-amber-950/40 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-900/35"
+                      disabled={character.gold < tonicPrice || tonicFull}
+                      title={tonicFull ? `Pack holds at most ${MAX_POTIONS_IN_PACK} tonics.` : undefined}
+                      className="w-full rounded-lg border border-emerald-700/70 bg-emerald-900/40 px-4 py-2.5 text-sm font-semibold text-emerald-50 enabled:hover:bg-emerald-800/45 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      Sell one
+                      Buy tonic — {tonicPrice}g ({tonicCount}/{MAX_POTIONS_IN_PACK})
                     </button>
                   </form>
                 </div>
-                  );
-                })()
-              ))
-            ) : (
-              <p className="text-sm text-zinc-500">Nothing to sell right now (or everything is equipped).</p>
-            )}
-          </div>
+                <div className="rounded-lg border border-violet-800/50 bg-black/25 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-violet-300/90">🪨 Smithing stone</p>
+                  <p className="mt-1 text-xs text-zinc-500">Used at the forge to reinforce equipped gear tiers.</p>
+                  <form action={buySmithingStoneAction} className="mt-3">
+                    <button
+                      type="submit"
+                      disabled={character.gold < stonePrice}
+                      className="w-full rounded-lg border border-violet-800/60 bg-violet-950/30 px-4 py-2.5 text-sm font-semibold text-violet-100 enabled:hover:bg-violet-900/35 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Buy smithing stone — {stonePrice}g
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </section>
+
+            <section className="grid gap-4 xl:grid-cols-2 xl:items-stretch">
+              <article className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-5 xl:h-176 xl:overflow-y-auto xl:pr-3">
+                <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Buy gear — {recommendedRegion.name}</h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Prices scale with stats and requirements. Hover names for full details.
+                </p>
+                {gearRows.length === 0 ? (
+                  <p className="mt-4 text-sm text-zinc-500">No common stock is defined for this tier in the database.</p>
+                ) : (
+                  <div className="mt-4">
+                    <ShopGearList
+                      rows={gearRows}
+                      buyAction={buyShopEquipmentAction}
+                      equippedBySlot={equippedBySlot}
+                      defaultPlaystyle={classDefaultFilter}
+                    />
+                  </div>
+                )}
+              </article>
+
+              <article className="flex flex-col rounded-xl border border-amber-900/35 bg-amber-950/10 p-5 shadow-md xl:min-h-0 xl:h-176">
+                <h2 className="text-[10px] font-bold uppercase tracking-widest text-amber-600/90">Sell gear</h2>
+                <p className="mt-1 text-sm text-zinc-400">
+                  Sell spare pack items quickly. Equipped gear must be unequipped first.
+                </p>
+                <div className="mt-3 space-y-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
+                  {sellableInventory.length ? (
+                    sellableInventory.map((entry) => {
+                      const equippedSameSlot = equippedBySlot[entry.item.slot] ?? null;
+                      const compareAgainst = equippedSameSlot
+                        ? {
+                            ...equippedSameSlot,
+                            forgeLevel: equippedSameSlot.forgeLevel ?? undefined,
+                          }
+                        : null;
+                      return (
+                        <div
+                          key={entry.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-800 bg-black/30 px-3 py-2 text-sm"
+                        >
+                          <span>
+                            <ItemHoverCard
+                              item={entry.item}
+                              forgeLevel={entry.forgeLevel}
+                              affixPrefix={entry.affixPrefix}
+                              bonusLifeSteal={entry.bonusLifeSteal}
+                              bonusCritChance={entry.bonusCritChance}
+                              bonusSkillPower={entry.bonusSkillPower}
+                              bonusStrength={entry.bonusStrength}
+                              bonusConstitution={entry.bonusConstitution}
+                              bonusIntelligence={entry.bonusIntelligence}
+                              bonusDexterity={entry.bonusDexterity}
+                              compareAgainst={compareAgainst}
+                            >
+                              <span className={`font-medium ${rarityNameClass(entry.item.rarity)}`}>
+                                {entry.item.emoji} {itemDisplayName(entry.item, entry.forgeLevel, entry.affixPrefix)}
+                              </span>
+                            </ItemHoverCard>
+                            <span className="text-zinc-500"> ×{entry.quantity}</span>
+                            <span className="ml-2 font-mono text-xs text-amber-200/80">{entry.item.sellPrice}g each</span>
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <form action={sellItemAction}>
+                              <input type="hidden" name="itemId" value={entry.item.id} />
+                              <input type="hidden" name="amount" value="ONE" />
+                              <button
+                                type="submit"
+                                className="rounded-lg border border-amber-800/60 bg-amber-950/40 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-900/35"
+                              >
+                                Sell x1
+                              </button>
+                            </form>
+                            <form action={sellItemAction}>
+                              <input type="hidden" name="itemId" value={entry.item.id} />
+                              <input type="hidden" name="amount" value="ALL" />
+                              <button
+                                type="submit"
+                                className="rounded-lg border border-zinc-700 bg-zinc-900/70 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:bg-zinc-800/70"
+                              >
+                                Sell all
+                              </button>
+                            </form>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-zinc-500">Nothing to sell right now (or everything is equipped).</p>
+                  )}
+                </div>
+              </article>
             </section>
           </div>
           <div className="hidden min-w-0 lg:block">

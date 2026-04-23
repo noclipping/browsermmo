@@ -67,8 +67,23 @@ export default async function TownPage() {
       : null;
 
   return (
-    <div className="min-h-screen bg-[#0c0a09] bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(120,53,15,0.25),transparent)]">
-      <main className="w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
+    <div className="relative isolate min-h-screen overflow-x-hidden bg-[#0c0a09] bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(120,53,15,0.25),transparent)]">
+      {/* Town hub only: full banner art (no crop), fades into page bg */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-0">
+        <div className="relative w-full leading-none">
+          {/* eslint-disable-next-line @next/next/no-img-element -- decorative full-bleed art; intrinsic sizing keeps entire image visible */}
+          <img
+            src="/images/townbanner.png"
+            alt=""
+            width={1717}
+            height={916}
+            className="block h-auto w-full max-w-full select-none"
+            decoding="async"
+          />
+          <div className="absolute inset-0 bg-linear-to-b from-transparent from-5% via-[#0c0a09]/55 via-42% to-[#0c0a09]" />
+        </div>
+      </div>
+      <main className="relative z-10 w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
         <div className="mx-auto w-full max-w-5xl">
           <GameTopBar
             username={user.username}
@@ -95,13 +110,8 @@ export default async function TownPage() {
             </div>
           </div>
           <div className="min-w-0 space-y-6">
-            <section
-          className="overflow-hidden rounded-2xl border border-amber-900/40 bg-cover bg-center"
-          style={{
-            backgroundImage: "url('/images/town/banner-placeholder.jpg')",
-          }}
-            >
-              <div className="bg-linear-to-b from-black/40 via-black/60 to-black/85 p-5">
+            <section className="overflow-hidden rounded-2xl border border-amber-900/40 bg-zinc-950/20 backdrop-blur-[1px]">
+              <div className="bg-linear-to-b from-black/45 via-black/65 to-black/88 p-5">
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500/90">
                   Town Outskirts
                 </p>

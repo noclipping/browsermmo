@@ -134,6 +134,46 @@ export function forgeMultiplierWithDiminishingReturns(forgeLevel: number): numbe
   return total;
 }
 
+/** Rolled legendary/godly affix potency scales with smithing tier (forge 0 = 1×). */
+export function forgedAffixMultiplier(params: { forgeLevel: number; rarity: Rarity }): number {
+  if (params.rarity !== "LEGENDARY" && params.rarity !== "GODLY") return 1;
+  const tier = Math.max(0, Math.floor(params.forgeLevel));
+  if (tier === 0) return 1;
+  const baseStep = params.rarity === "GODLY" ? 0.055 : 0.048;
+  let add = 0;
+  for (let i = 1; i <= tier; i += 1) {
+    add += baseStep / (1 + (i - 1) * 0.18);
+  }
+  return Number((1 + add).toFixed(5));
+}
+
+export type StoredAffixBonuses = {
+  bonusLifeSteal: number;
+  bonusCritChance: number;
+  bonusSkillPower: number;
+  bonusStrength: number;
+  bonusConstitution: number;
+  bonusIntelligence: number;
+  bonusDexterity: number;
+};
+
+export function forgedAffixScaledBonuses(
+  stored: StoredAffixBonuses,
+  params: { forgeLevel: number; rarity: Rarity },
+): StoredAffixBonuses {
+  const m = forgedAffixMultiplier(params);
+  if (m === 1) return { ...stored };
+  return {
+    bonusLifeSteal: Number((stored.bonusLifeSteal * m).toFixed(4)),
+    bonusCritChance: Number((stored.bonusCritChance * m).toFixed(4)),
+    bonusSkillPower: Number((stored.bonusSkillPower * m).toFixed(4)),
+    bonusStrength: Math.round(stored.bonusStrength * m),
+    bonusConstitution: Math.round(stored.bonusConstitution * m),
+    bonusIntelligence: Math.round(stored.bonusIntelligence * m),
+    bonusDexterity: Math.round(stored.bonusDexterity * m),
+  };
+}
+
 export function forgedStatsForEntry(params: {
   slot: string;
   rarity: Rarity;
