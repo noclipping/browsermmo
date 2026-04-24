@@ -13,6 +13,12 @@ import { openingLine, rollEnemyIntent } from "@/lib/game/combat-turn";
 import { forgedAffixScaledBonuses } from "@/lib/game/item-affixes";
 import { buildCharacterStats } from "@/lib/game/stats";
 
+const ENEMY_POWER_MULTIPLIER = 0.75;
+
+function scaledEnemyStat(value: number): number {
+  return Math.max(1, Math.floor(value * ENEMY_POWER_MULTIPLIER));
+}
+
 export type SoloEncounterStartJson = {
   encounterId: string;
   round: number;
@@ -127,24 +133,25 @@ export async function createSoloEncounter(
   }
 
   const encounter = await prisma.soloCombatEncounter.create({
+    // Enemy power tuning pass: all combat-facing enemy stats are reduced globally.
     data: {
       characterId: params.character.id,
       enemyId: params.enemy.id,
       status: "ACTIVE",
       playerHp: Math.min(params.character.hp, computed.maxHp),
       playerMaxHp: computed.maxHp,
-      enemyHp: params.enemy.hp,
-      enemyMaxHp: params.enemy.hp,
+      enemyHp: scaledEnemyStat(params.enemy.hp),
+      enemyMaxHp: scaledEnemyStat(params.enemy.hp),
       // Class-specific basic attack scaling:
       // Warrior -> STR/melee, Rogue -> DEX/ranged, Mage -> INT/magic.
       playerAttack: classAttack,
       playerDefense: computed.defense,
       playerSpeed: computed.maxMana,
       playerCrit: computed.critChance,
-      enemyAttack: params.enemy.attack,
-      enemyDefense: params.enemy.defense,
-      enemySpeed: params.enemy.speed,
-      enemyCrit: 0.045,
+      enemyAttack: scaledEnemyStat(params.enemy.attack),
+      enemyDefense: scaledEnemyStat(params.enemy.defense),
+      enemySpeed: scaledEnemyStat(params.enemy.speed),
+      enemyCrit: 0.045 * ENEMY_POWER_MULTIPLIER,
       enemyIntent: firstIntent,
       round: 1,
       skillCooldownRemaining: 0,

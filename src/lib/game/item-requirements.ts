@@ -16,6 +16,7 @@ export function characterMeetsItemLevelAndStats(character: Character, item: Item
 
 export function formatItemStatRequirements(item: Item): string | null {
   const parts: string[] = [];
+  if (item.requiredLevel > 1) parts.push(`LVL ${item.requiredLevel}+`);
   if (item.requiredStrength > 0) parts.push(`STR ${item.requiredStrength}+`);
   if (item.requiredConstitution > 0) parts.push(`CON ${item.requiredConstitution}+`);
   if (item.requiredIntelligence > 0) parts.push(`INT ${item.requiredIntelligence}+`);

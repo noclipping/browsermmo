@@ -7,7 +7,7 @@ import {
   LEVEL_UP_MAX_HP,
   STAT_POINTS_PER_LEVEL,
 } from "@/lib/game/constants";
-import { applyXp } from "@/lib/game/progression";
+import { applyXp, scaleXpGain } from "@/lib/game/progression";
 
 export function rollGoldReward(enemy: Enemy): number {
   return enemy.goldMin + Math.floor(Math.random() * (enemy.goldMax - enemy.goldMin + 1));
@@ -19,9 +19,8 @@ export function rollDrops(lootEntries: (LootTableEntry & { item: Item })[]): str
 
 export function xpForOutcome(enemy: Enemy, victory: boolean, characterLevel: number): number {
   const base = victory ? enemy.xpReward : Math.floor(enemy.xpReward * 0.15);
-  if (enemy.level <= characterLevel) return Math.max(2, Math.floor(base * 0.4));
-  if (enemy.level >= characterLevel + 2) return Math.floor(base * 1.12);
-  return base;
+  const scaledBase = enemy.level <= characterLevel ? Math.max(2, Math.floor(base * 0.4)) : enemy.level >= characterLevel + 2 ? Math.floor(base * 1.12) : base;
+  return scaleXpGain(scaledBase);
 }
 
 /** Keep end-of-fight HP (no full heal). On level-up, max HP grows and current HP gets a small bump. */

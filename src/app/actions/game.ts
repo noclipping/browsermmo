@@ -129,6 +129,28 @@ export async function returnToTownAction() {
   redirect("/");
 }
 
+/** Leave the wilds and open the market in one step (blocked during active combat). */
+export async function returnToTownAndShopAction() {
+  const user = await requireUser();
+  const character = await requireCharacter(user.id);
+  const inCombat = await prisma.soloCombatEncounter.findFirst({
+    where: { characterId: character.id, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (inCombat) return;
+
+  const town = await prisma.region.findUnique({ where: { key: "town_outskirts" } });
+  if (!town) return;
+
+  await prisma.character.update({
+    where: { id: character.id },
+    data: { region: { connect: { id: town.id } } },
+  });
+  revalidatePath("/", "layout");
+  revalidatePath("/shop", "layout");
+  redirect("/shop");
+}
+
 /** Form / `useActionState` result for the adventure roll (works when client click handlers never fire). */
 export type AdventureRollFormState =
   | { ok: true; rolledAt: number; payload: AdventureStartSuccessBody }

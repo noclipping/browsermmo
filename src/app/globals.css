@@ -8,6 +8,11 @@ body {
   font-family: var(--font-sans), sans-serif;
 }
 
+html,
+body {
+  background-color: rgba(12, 10, 9, 1);
+}
+
 /* Global dark scrollbars across the game UI (Firefox + WebKit). */
 * {
   scrollbar-width: thin;

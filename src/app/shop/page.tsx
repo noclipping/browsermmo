@@ -6,6 +6,7 @@ import {
   buyShopEquipmentAction,
   buySmithingStoneAction,
   returnToTownAction,
+  returnToTownAndShopAction,
   sellItemAction,
 } from "@/app/actions/game";
 import { AdventureLoadoutPanel } from "@/components/adventure-loadout-panel";
@@ -133,13 +134,42 @@ export default async function ShopPage() {
   const effective = buildCharacterStats(character, equipment);
   const classDefaultFilter: ShopPlaystyle =
     character.class === "WARRIOR" ? "WARRIOR" : character.class === "MAGE" ? "MAGE" : "ROGUE";
+  const marketPanelClass =
+    "rounded-2xl border border-amber-900/40 bg-zinc-950/20 bg-linear-to-b from-black/45 via-black/65 to-black/88 p-5 backdrop-blur-[1px]";
+  const marketTitleClass = "text-[10px] font-bold uppercase tracking-widest text-amber-500/90";
+  const marketSubtleTextClass = "mt-1 text-sm text-zinc-300";
+  const marketButtonClass =
+    "rounded-lg border border-amber-800/60 bg-amber-950/30 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-900/35";
 
   return (
-    <div className="min-h-screen bg-[#0c0a09] bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(20,83,45,0.2),transparent)]">
-      <main className="w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
+    <div className="relative isolate min-h-screen overflow-x-hidden bg-[#0c0a09]">
+      {/* Shop only: banner fades into page bg; md+ shows full art; mobile uses min-height + cover for more vertical presence */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 z-0"
+      >
+        <div className="relative w-full max-md:min-h-[72vh] max-md:overflow-hidden leading-none">
+          {/* eslint-disable-next-line @next/next/no-img-element -- decorative full-bleed art; md+ intrinsic sizing shows full frame */}
+          <img
+            src="/images/shopbanner.png"
+            alt=""
+            width={1717}
+            height={916}
+            className="block h-auto w-full max-w-full select-none max-md:absolute max-md:inset-0 max-md:h-full max-md:object-cover max-md:object-center max-md:scale-125"
+            decoding="async"
+          />
+          <div className="absolute inset-0 bg-linear-to-b from-transparent from-10% via-[#0c0a09]/50 via-52% to-[#0c0a09] md:from-5% md:via-[#0c0a09]/55 md:via-42%" />
+        </div>
+      </div>
+      <main className="relative z-10 w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
         <div className="mx-auto w-full max-w-5xl">
           <GameTopBar username={user.username} characterName={character.name} characterClass={character.class} />
-          <GameNav inTownRegion={inTownRegion} combatLocked={false} returnToTownAction={returnToTownAction} />
+          <GameNav
+            inTownRegion={inTownRegion}
+            combatLocked={false}
+            returnToTownAction={returnToTownAction}
+            returnToTownAndShopAction={returnToTownAndShopAction}
+          />
         </div>
         <div className="grid gap-4 lg:grid-cols-[minmax(16rem,1fr)_minmax(0,56rem)_minmax(16rem,1fr)] lg:items-start">
           <div className="hidden min-w-0 lg:block">
@@ -155,11 +185,11 @@ export default async function ShopPage() {
             </div>
           </div>
           <div className="min-w-0 space-y-6">
-            <header className="rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500/90">Town market</p>
-          <h1 className="mt-1 font-serif text-2xl text-emerald-50">Travelers&apos; stock by league and region</h1>
-          <p className="mt-2 text-sm text-zinc-400">
-            Full <span className="text-emerald-200/90">common</span> catalog for your recommended region by level (today:{" "}
+            <header className={marketPanelClass}>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500/90">Town market</p>
+          <h1 className="mt-1 font-serif text-2xl text-amber-100">Travelers&apos; stock by league and region</h1>
+          <p className="mt-2 text-sm text-zinc-300">
+            Full <span className="text-amber-200/90">common</span> catalog for your recommended region by level (today:{" "}
             <strong className="text-zinc-200">{recommendedRegion.name}</strong>, Lv {recommendedRegion.minLevel}+). Every
             kit and slot is listed; buy stays locked until you meet level, stats, and gold. Apothecary prices tick up with
             tier.
@@ -173,15 +203,15 @@ export default async function ShopPage() {
           </Link>
             </header>
 
-            <section className="rounded-xl border border-emerald-700/40 bg-emerald-950/20 p-5">
-              <h2 className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/95">Front counter</h2>
-              <p className="mt-1 text-sm text-zinc-500">
+            <section className={marketPanelClass}>
+              <h2 className={marketTitleClass}>Front counter</h2>
+              <p className={marketSubtleTextClass}>
                 Quick consumables and crafting stock. Prices scale by your recommended tier.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-emerald-800/50 bg-black/25 p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-300/90">🧪 Crimson tonic</p>
-                  <p className="mt-1 text-xs text-zinc-500">
+                <div className="rounded-lg border border-amber-900/40 bg-zinc-950/35 p-3">
+                  <p className={marketTitleClass}>🧪 Crimson tonic</p>
+                  <p className="mt-1 text-xs text-zinc-300">
                     Fast out-of-combat heal. Carry cap: {MAX_POTIONS_IN_PACK}.
                   </p>
                   <form action={buyPotionAction} className="mt-3">
@@ -189,20 +219,20 @@ export default async function ShopPage() {
                       type="submit"
                       disabled={character.gold < tonicPrice || tonicFull}
                       title={tonicFull ? `Pack holds at most ${MAX_POTIONS_IN_PACK} tonics.` : undefined}
-                      className="w-full rounded-lg border border-emerald-700/70 bg-emerald-900/40 px-4 py-2.5 text-sm font-semibold text-emerald-50 enabled:hover:bg-emerald-800/45 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="w-full rounded-lg border border-amber-800/60 bg-amber-950/30 px-4 py-2.5 text-sm font-semibold text-amber-100 enabled:hover:bg-amber-900/35 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Buy tonic — {tonicPrice}g ({tonicCount}/{MAX_POTIONS_IN_PACK})
                     </button>
                   </form>
                 </div>
-                <div className="rounded-lg border border-violet-800/50 bg-black/25 p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-violet-300/90">🪨 Smithing stone</p>
-                  <p className="mt-1 text-xs text-zinc-500">Used at the forge to reinforce equipped gear tiers.</p>
+                <div className="rounded-lg border border-amber-900/40 bg-zinc-950/35 p-3">
+                  <p className={marketTitleClass}>🪨 Smithing stone</p>
+                  <p className="mt-1 text-xs text-zinc-300">Used at the forge to reinforce equipped gear tiers.</p>
                   <form action={buySmithingStoneAction} className="mt-3">
                     <button
                       type="submit"
                       disabled={character.gold < stonePrice}
-                      className="w-full rounded-lg border border-violet-800/60 bg-violet-950/30 px-4 py-2.5 text-sm font-semibold text-violet-100 enabled:hover:bg-violet-900/35 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="w-full rounded-lg border border-amber-800/60 bg-amber-950/30 px-4 py-2.5 text-sm font-semibold text-amber-100 enabled:hover:bg-amber-900/35 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Buy smithing stone — {stonePrice}g
                     </button>
@@ -212,13 +242,13 @@ export default async function ShopPage() {
             </section>
 
             <section className="grid gap-4 xl:grid-cols-2 xl:items-stretch">
-              <article className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-5 xl:h-176 xl:overflow-y-auto xl:pr-3">
-                <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Buy gear — {recommendedRegion.name}</h2>
-                <p className="mt-1 text-sm text-zinc-500">
+              <article className={`${marketPanelClass} xl:h-176 xl:overflow-y-auto xl:pr-3`}>
+                <h2 className={marketTitleClass}>Buy gear — {recommendedRegion.name}</h2>
+                <p className={marketSubtleTextClass}>
                   Prices scale with stats and requirements. Hover names for full details.
                 </p>
                 {gearRows.length === 0 ? (
-                  <p className="mt-4 text-sm text-zinc-500">No common stock is defined for this tier in the database.</p>
+                  <p className="mt-4 text-sm text-zinc-300">No common stock is defined for this tier in the database.</p>
                 ) : (
                   <div className="mt-4">
                     <ShopGearList
@@ -231,9 +261,9 @@ export default async function ShopPage() {
                 )}
               </article>
 
-              <article className="flex flex-col rounded-xl border border-amber-900/35 bg-amber-950/10 p-5 shadow-md xl:min-h-0 xl:h-176">
-                <h2 className="text-[10px] font-bold uppercase tracking-widest text-amber-600/90">Sell gear</h2>
-                <p className="mt-1 text-sm text-zinc-400">
+              <article className={`flex flex-col ${marketPanelClass} xl:min-h-0 xl:h-176`}>
+                <h2 className={marketTitleClass}>Sell gear</h2>
+                <p className={marketSubtleTextClass}>
                   Sell spare pack items quickly. Equipped gear must be unequipped first.
                 </p>
                 <div className="mt-3 space-y-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
@@ -249,7 +279,7 @@ export default async function ShopPage() {
                       return (
                         <div
                           key={entry.id}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-800 bg-black/30 px-3 py-2 text-sm"
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-900/35 bg-zinc-950/35 px-3 py-2 text-sm"
                         >
                           <span>
                             <ItemHoverCard
@@ -269,27 +299,21 @@ export default async function ShopPage() {
                                 {entry.item.emoji} {itemDisplayName(entry.item, entry.forgeLevel, entry.affixPrefix)}
                               </span>
                             </ItemHoverCard>
-                            <span className="text-zinc-500"> ×{entry.quantity}</span>
+                            <span className="text-zinc-300"> ×{entry.quantity}</span>
                             <span className="ml-2 font-mono text-xs text-amber-200/80">{entry.item.sellPrice}g each</span>
                           </span>
                           <div className="flex items-center gap-2">
                             <form action={sellItemAction}>
                               <input type="hidden" name="itemId" value={entry.item.id} />
                               <input type="hidden" name="amount" value="ONE" />
-                              <button
-                                type="submit"
-                                className="rounded-lg border border-amber-800/60 bg-amber-950/40 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-900/35"
-                              >
+                              <button type="submit" className={marketButtonClass}>
                                 Sell x1
                               </button>
                             </form>
                             <form action={sellItemAction}>
                               <input type="hidden" name="itemId" value={entry.item.id} />
                               <input type="hidden" name="amount" value="ALL" />
-                              <button
-                                type="submit"
-                                className="rounded-lg border border-zinc-700 bg-zinc-900/70 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:bg-zinc-800/70"
-                              >
+                              <button type="submit" className={marketButtonClass}>
                                 Sell all
                               </button>
                             </form>
@@ -298,7 +322,7 @@ export default async function ShopPage() {
                       );
                     })
                   ) : (
-                    <p className="text-sm text-zinc-500">Nothing to sell right now (or everything is equipped).</p>
+                    <p className="text-sm text-zinc-300">Nothing to sell right now (or everything is equipped).</p>
                   )}
                 </div>
               </article>

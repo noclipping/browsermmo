@@ -19,7 +19,7 @@ import {
 } from "@/lib/game/constants";
 import { addItemQuantityCapped } from "@/lib/game/inventory-potions";
 import { readOutskirtsBossState } from "@/lib/game/outskirts-sql";
-import { applyXp } from "@/lib/game/progression";
+import { applyXp, scaleXpGain } from "@/lib/game/progression";
 import { createSoloEncounter, toStartResponse } from "@/lib/game/start-encounter";
 import { prisma } from "@/lib/prisma";
 
@@ -218,7 +218,7 @@ export async function executeAdventureEventChoice(params: {
   }
 
   if (Math.random() < 0.64) {
-    const amount = rollXpAmount(region.key) * 2;
+    const amount = scaleXpGain(rollXpAmount(region.key) * 2);
     const { leveled } = await applyOutOfCombatXp(params.character, amount);
     revalidatePath("/", "layout");
     return {

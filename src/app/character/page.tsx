@@ -1,5 +1,12 @@
 import { redirect } from "next/navigation";
-import { allocateStatAction, consumeTonicOutsideCombatAction, equipItemAction, returnToTownAction, unequipSlotAction } from "@/app/actions/game";
+import {
+  allocateStatAction,
+  consumeTonicOutsideCombatAction,
+  equipItemAction,
+  returnToTownAction,
+  returnToTownAndShopAction,
+  unequipSlotAction,
+} from "@/app/actions/game";
 import { AdventureLoadoutPanel } from "@/components/adventure-loadout-panel";
 import { ADVENTURE_REGIONS } from "@/lib/game/adventure";
 import { CLASS_SKILLS } from "@/lib/game/constants";
@@ -49,11 +56,34 @@ export default async function CharacterPage() {
   const combatLocked = !!combatActive;
 
   return (
-    <div className="min-h-screen bg-[#0c0a09] bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(120,53,15,0.25),transparent)]">
-      <main className="w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
+    <div className="relative isolate min-h-screen overflow-x-hidden bg-[#0c0a09]">
+      {/* Character sheet banner: same styling system as town/shop pages */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 z-0"
+      >
+        <div className="relative w-full max-md:min-h-[72vh] max-md:overflow-hidden leading-none">
+          {/* eslint-disable-next-line @next/next/no-img-element -- decorative full-bleed art; md+ intrinsic sizing shows full frame */}
+          <img
+            src="/images/charactersheetbanner.png"
+            alt=""
+            width={1717}
+            height={916}
+            className="block h-auto w-full max-w-full select-none max-md:absolute max-md:inset-0 max-md:h-full max-md:object-cover max-md:object-center max-md:scale-125"
+            decoding="async"
+          />
+          <div className="absolute inset-0 bg-linear-to-b from-transparent from-10% via-[#0c0a09]/50 via-52% to-[#0c0a09] md:from-5% md:via-[#0c0a09]/55 md:via-42%" />
+        </div>
+      </div>
+      <main className="relative z-10 w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
         <div className="mx-auto w-full max-w-5xl">
           <GameTopBar username={user.username} characterName={character.name} characterClass={character.class} />
-          <GameNav inTownRegion={inTownRegion} combatLocked={combatLocked} returnToTownAction={returnToTownAction} />
+          <GameNav
+            inTownRegion={inTownRegion}
+            combatLocked={combatLocked}
+            returnToTownAction={returnToTownAction}
+            returnToTownAndShopAction={returnToTownAndShopAction}
+          />
         </div>
         <div className="grid gap-4 lg:grid-cols-[minmax(16rem,1fr)_minmax(0,56rem)_minmax(16rem,1fr)] lg:items-start">
           <div className="hidden min-w-0 lg:block">
