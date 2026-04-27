@@ -4,6 +4,8 @@
 
 - **Stack:** Next.js, TypeScript, Prisma, PostgreSQL.
 - **Solo PvE:** Turn-based combat with telegraphed enemy intent (attack / heavy / guard / recover), skills per class, manual potion use with cooldown, auto-battle, flee.
+- **Combat architecture (Phase 0 complete):** Solo persistence now routes through a compatibility seam in `src/lib/game/encounter-domain.ts` (domain types + row/state adapters + shared update builder) while keeping `SoloCombatEncounter` as source of truth.
+- **Telemetry (dev-only):** Lightweight fight summaries now log outcome/class/enemy/turns/action usage via `src/lib/game/combat-telemetry.ts` for class-balance validation.
 - **Screens:** Town (shop, campfire, forge, buyback), Adventure (region pick, encounter roll, combat UI), Character (stats, equipment, pack, solo dungeon hook).
 - **Progression:** XP and leveling, stat points (STR / CON / INT / DEX), equipment slots, loot tables, rarity, stat-gated gear, region level gates, elite spawns, optional miniboss pacing (outskirts), smithing forge on equipped pieces, inventory `forgeLevel` on stacks.
 - **Classes:** Warrior, Mage, Rogue (archer-style in UI copy).
@@ -15,6 +17,7 @@
 - **Prisma / dev hygiene:** Reliable `migrate` + `generate` on Windows (EPERM on query engine); document one-command flow for new contributors.
 - **Doc + design alignment:** Keep `game-design.md` and this roadmap updated when systems change (no silent drift).
 - **Stability:** Clear errors when seed/DB mismatch (enemies, regions); avoid opaque “mismatch” copy where possible.
+- **Phase 0 follow-up (done, monitor):** Added simulation-backed class balancing workflow (optimal + conservative policies) and set current baseline in `docs/tasks/phase-0-combat-foundation.md`.
 
 ## Near-term milestones (weeks)
 

@@ -1,6 +1,6 @@
 # Page background banners (full-bleed, fade to page bg)
 
-This document describes how the **town hub** (`/`) implements `public/images/townbanner.png` so you can repeat the pattern for other routes or swap art later.
+This document describes how the **town hub** (`/`) implements `public/images/areabanners/townbanner.png` so you can repeat the pattern for other routes or swap art later.
 
 ## Goals
 
@@ -11,8 +11,8 @@ This document describes how the **town hub** (`/`) implements `public/images/tow
 
 ## Asset placement
 
-- Put files under `public/images/` (e.g. `public/images/townbanner.png`).
-- Reference in markup as **`/images/<filename>`** (leading slash, no `public/`).
+- Put files under `public/images/areabanners/` (e.g. `public/images/areabanners/townbanner.png`).
+- Reference in markup as **`/images/areabanners/<filename>`** (leading slash, no `public/`).
 
 ## Implementation pattern (reference)
 
@@ -24,7 +24,7 @@ See **`src/app/page.tsx`** — the outer shell and banner block look like this:
 4. **Image** — use a real **`<img>`**, not a CSS background:
    - **Desktop (`md+`)** — show the **full frame** (no crop): `block h-auto w-full max-w-full select-none`.
    - **Mobile (`max-md`)** — fill that taller wrapper while keeping aspect ratio (crops **left/right** only): `max-md:absolute max-md:inset-0 max-md:h-full max-md:object-cover max-md:object-center`.
-   - **`width` and `height` attributes must match the file’s pixel dimensions`** (reduces layout shift; preserves aspect ratio before decode). Get dimensions from the file (e.g. `file public/images/yourbanner.png`, or read PNG `IHDR`).
+   - **`width` and `height` attributes must match the file’s pixel dimensions`** (reduces layout shift; preserves aspect ratio before decode). Get dimensions from the file (e.g. `file public/images/areabanners/yourbanner.png`, or read PNG `IHDR`).
 5. **Fade overlay** — absolutely positioned on top of the image, same box as the image:
    - `absolute inset-0 bg-linear-to-b from-transparent … via-[PAGE_BG]/55 … to-[PAGE_BG]`
    - **`PAGE_BG` must match** the solid background color of the page (town uses `#0c0a09`). If you change the page bg, update the gradient stops.
@@ -59,7 +59,7 @@ For static decorative art where intrinsic `width`/`height` matter, a plain `<img
 
 ## Checklist for a new banner on another page
 
-1. Add PNG/WebP under `public/images/`.
+1. Add PNG/WebP under `public/images/areabanners/`.
 2. Note **exact width × height**; set matching `width`/`height` on `<img>`.
 3. Copy the banner structure from `src/app/page.tsx` into that page’s root layout (only the routes that should show it).
 4. Match **`to-[#…]` and `via-[#…]/opacity`** to that page’s base `background` color.

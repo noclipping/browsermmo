@@ -54,7 +54,7 @@ export const TOWN_REST_COOLDOWN_MS = 120_000;
 /** Solo adventure pacing: strong early hero, short fights in starting regions. */
 export const CLASS_BASE_STATS = {
   WARRIOR: { hp: 54, attack: 9, defense: 7, speed: 3, critChance: 0.07 },
-  MAGE: { hp: 44, attack: 10, defense: 4, speed: 4, critChance: 0.1 },
+  MAGE: { hp: 44, attack: 9, defense: 4, speed: 4, critChance: 0.1 },
   ROGUE: { hp: 48, attack: 9, defense: 5, speed: 6, critChance: 0.12 },
 };
 
@@ -117,7 +117,7 @@ export const CLASS_SKILLS: Record<
     name: "Fireball",
     emoji: "🔥",
     cooldown: 2,
-    description: "Spell hit (~130% power, scales with INT). 2-turn cooldown.",
+    description: "Spell hit (~130% power, scales with INT, slightly reduced). 2-turn cooldown.",
   },
   ROGUE: {
     name: "Volley",

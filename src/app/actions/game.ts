@@ -75,7 +75,7 @@ export async function allocateStatAction(formData: FormData) {
         : {}),
     },
   });
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
 }
 
 export async function changeRegionAction(formData: FormData) {
@@ -103,7 +103,7 @@ export async function changeRegionAction(formData: FormData) {
     where: { id: character.id },
     data: { region: { connect: { id: parsed.data.regionId } } },
   });
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
 }
 
@@ -124,9 +124,9 @@ export async function returnToTownAction() {
     where: { id: character.id },
     data: { region: { connect: { id: town.id } } },
   });
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
-  redirect("/");
+  redirect("/town");
 }
 
 /** Leave the wilds and open the market in one step (blocked during active combat). */
@@ -146,7 +146,7 @@ export async function returnToTownAndShopAction() {
     where: { id: character.id },
     data: { region: { connect: { id: town.id } } },
   });
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
   redirect("/shop");
 }
@@ -286,7 +286,7 @@ export async function buyShopEquipmentAction(formData: FormData) {
     });
   });
 
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
 }
 
@@ -378,7 +378,7 @@ export async function equipItemAction(formData: FormData) {
     });
   });
 
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
 }
 
 const unequipSchema = z.object({ slot: z.enum(["WEAPON", "HELMET", "CHEST", "GLOVES", "BOOTS", "RING", "AMULET"]) });
@@ -430,7 +430,7 @@ export async function unequipSlotAction(formData: FormData) {
     });
   });
 
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
 }
 
 const sellSchema = z.object({
@@ -477,7 +477,7 @@ export async function sellItemAction(formData: FormData) {
     });
   });
 
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
 }
 
@@ -516,7 +516,7 @@ export async function buyPotionAction() {
     });
   });
 
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
 }
 
@@ -549,7 +549,7 @@ export async function consumeTonicOutsideCombatAction() {
     }
   });
 
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
   revalidatePath("/adventure", "page");
   revalidatePath("/character", "page");
 }
@@ -583,7 +583,7 @@ export async function buySmithingStoneAction() {
     });
   });
 
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
 }
 
@@ -611,7 +611,7 @@ export async function restAtCampfireAction() {
     where: { id: character.id },
     data: { hp: character.maxHp, lastFreeRestAt: new Date(now) },
   });
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
 }
 
 const forgeSchema = z.object({
@@ -664,7 +664,7 @@ export async function forgeUpgradeAction(formData: FormData) {
     }
   });
 
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
 }
 
 /** Debug: reset character to level 1, base class stats, town, starter gold, empty pack except 4 tonics, no gear, no active combat. */
@@ -720,6 +720,6 @@ export async function debugResetCharacterAction() {
     }
   });
 
-  revalidatePath("/", "layout");
-  redirect("/");
+  revalidatePath("/town", "layout");
+  redirect("/town");
 }

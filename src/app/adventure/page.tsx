@@ -67,9 +67,9 @@ export default async function AdventurePage({
   const effective = buildCharacterStats(character, equipment);
   const unlockedCount = character.level >= 8 ? 4 : character.level >= 4 ? 3 : 2;
   const bannerByRegionKey: Partial<Record<string, string>> = {
-    town_outskirts: "/images/townoutskirtsbanner.png",
-    forest_edge: "/images/forestbanner.png",
-    ancient_ruins: "/images/ancientruinsbanner.png",
+    town_outskirts: "/images/areabanners/townoutskirtsbanner.png",
+    forest_edge: "/images/areabanners/forestbanner.png",
+    ancient_ruins: "/images/areabanners/ancientruinsbanner.png",
   };
   const regionBannerSrc = bannerByRegionKey[regionKey] ?? null;
 
@@ -96,7 +96,7 @@ export default async function AdventurePage({
       ) : null}
       <main className="relative z-10 w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
         <div className="mx-auto w-full max-w-5xl">
-          <GameTopBar username={user.username} characterName={character.name} characterClass={character.class} />
+          <GameTopBar characterName={character.name} characterClass={character.class} />
           <GameNav
             inTownRegion={inTownRegion}
             combatLocked={combatLocked}

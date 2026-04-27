@@ -256,7 +256,12 @@ export function resolveCombatRound(params: {
   lines.push(intentTelegraphLine(intent, params.enemyShortName));
 
   if (params.playerAction === "ATTACK") {
-    state = applyPlayerPhysicalHit(state, state.playerAttack, params.enemyLabel, state.playerCrit, lines, armorLog);
+    const pc = params.playerClass;
+    if (pc === "ROGUE") {
+      lines.push("🏹 Quick Shot — a fast ranged strike!");
+    }
+    const basicAttack = pc === "ROGUE" ? state.playerAttack * 1.3 : state.playerAttack;
+    state = applyPlayerPhysicalHit(state, basicAttack, params.enemyLabel, state.playerCrit, lines, armorLog);
   } else if (params.playerAction === "SKILL") {
     const pc = params.playerClass;
     const intl = params.playerIntelligence ?? 0;
@@ -270,7 +275,7 @@ export function resolveCombatRound(params: {
         lines.push("✨ Your mana is too low for Fireball.");
       } else {
         lines.push("🔥 Fireball — flame roars toward your foe!");
-        const spellPower = Math.floor(state.playerAttack * 0.4 + intl * 1.45);
+        const spellPower = Math.floor(state.playerAttack * 0.4 + intl * 1.3);
         const spellAtk = Math.floor(spellPower * 1.3 * (1 + Math.max(0, state.playerSkillPowerBonus)));
         state = applyPlayerPhysicalHit(state, spellAtk, params.enemyLabel, state.playerCrit, lines, armorLog);
         state = { ...state, playerMana: Math.max(0, state.playerMana - manaCost) };
@@ -280,7 +285,7 @@ export function resolveCombatRound(params: {
       for (let i = 0; i < 2 && state.enemyHp > 0; i++) {
         lines.push(i === 0 ? "First shaft flies." : "Second shaft follows.");
         const boosted = 1 + Math.max(0, state.playerSkillPowerBonus);
-        state = applyPlayerPhysicalHit(state, state.playerAttack * 0.7 * boosted, params.enemyLabel, state.playerCrit, lines, armorLog);
+        state = applyPlayerPhysicalHit(state, state.playerAttack * 0.85 * boosted, params.enemyLabel, state.playerCrit, lines, armorLog);
       }
     } else {
       lines.push("You have no class skill — the moment is wasted.");

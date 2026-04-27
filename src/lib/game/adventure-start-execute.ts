@@ -162,7 +162,7 @@ export async function executeAdventureEventChoice(params: {
           delta: 2,
         });
       });
-      revalidatePath("/", "layout");
+      revalidatePath("/town", "layout");
       return {
         ok: true,
         body: {
@@ -176,7 +176,7 @@ export async function executeAdventureEventChoice(params: {
       where: { id: params.character.id },
       data: { hp: Math.max(1, params.character.hp - hpLoss) },
     });
-    revalidatePath("/", "layout");
+    revalidatePath("/town", "layout");
     return {
       ok: true,
       body: {
@@ -191,7 +191,7 @@ export async function executeAdventureEventChoice(params: {
     if (Math.random() < 0.62) {
       const amount = rollGoldAmount(region.key) * 2;
       await prisma.character.update({ where: { id: params.character.id }, data: { gold: { increment: amount } } });
-      revalidatePath("/", "layout");
+      revalidatePath("/town", "layout");
       return {
         ok: true,
         body: {
@@ -206,7 +206,7 @@ export async function executeAdventureEventChoice(params: {
       where: { id: params.character.id },
       data: { hp: Math.max(1, params.character.hp - hpLoss) },
     });
-    revalidatePath("/", "layout");
+    revalidatePath("/town", "layout");
     return {
       ok: true,
       body: {
@@ -220,7 +220,7 @@ export async function executeAdventureEventChoice(params: {
   if (Math.random() < 0.64) {
     const amount = scaleXpGain(rollXpAmount(region.key) * 2);
     const { leveled } = await applyOutOfCombatXp(params.character, amount);
-    revalidatePath("/", "layout");
+    revalidatePath("/town", "layout");
     return {
       ok: true,
       body: {
@@ -241,7 +241,7 @@ export async function executeAdventureEventChoice(params: {
     where: { id: params.character.id },
     data: { hp: Math.max(1, params.character.hp - hpLoss) },
   });
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
   return {
     ok: true,
     body: {
@@ -270,7 +270,7 @@ export async function executeAdventureStart(character: Character): Promise<Adven
     return { ok: false, error: "This region has no adventure routes yet.", httpStatus: 400 };
   }
 
-  let kind = rollAdventureKind(region.key);
+  const kind = rollAdventureKind(region.key);
 
   if (kind === "POTION" || kind === "GOLD" || kind === "XP") {
     const event = eventPayloadFor(kind);
@@ -316,7 +316,7 @@ export async function executeAdventureStart(character: Character): Promise<Adven
   });
   const encounterLog = encounter.log as string[];
 
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
   revalidatePath("/adventure", "page");
 
   return {

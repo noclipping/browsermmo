@@ -65,7 +65,7 @@ export default async function ShopPage() {
   if (combatActive) redirect("/adventure");
 
   const inTownRegion = !!townRegion && character.regionId === townRegion.id;
-  if (!inTownRegion) redirect("/");
+  if (!inTownRegion) redirect("/town");
 
   const tier = recommendedShopTier(character.level, regions);
   const recommendedRegion = regions[tier] ?? regions[0];
@@ -135,11 +135,11 @@ export default async function ShopPage() {
   const classDefaultFilter: ShopPlaystyle =
     character.class === "WARRIOR" ? "WARRIOR" : character.class === "MAGE" ? "MAGE" : "ROGUE";
   const marketPanelClass =
-    "rounded-2xl border border-amber-900/40 bg-zinc-950/20 bg-linear-to-b from-black/45 via-black/65 to-black/88 p-5 backdrop-blur-[1px]";
-  const marketTitleClass = "text-[10px] font-bold uppercase tracking-widest text-amber-500/90";
-  const marketSubtleTextClass = "mt-1 text-sm text-zinc-300";
+    "rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-5 backdrop-blur-[1px]";
+  const marketTitleClass = "text-[10px] font-bold uppercase tracking-widest text-white/80";
+  const marketSubtleTextClass = "mt-1 text-sm text-zinc-200";
   const marketButtonClass =
-    "rounded-lg border border-amber-800/60 bg-amber-950/30 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-900/35";
+    "rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:bg-white/10";
 
   return (
     <div className="relative isolate min-h-screen overflow-x-hidden bg-[#0c0a09]">
@@ -151,7 +151,7 @@ export default async function ShopPage() {
         <div className="relative w-full max-md:min-h-[72vh] max-md:overflow-hidden leading-none">
           {/* eslint-disable-next-line @next/next/no-img-element -- decorative full-bleed art; md+ intrinsic sizing shows full frame */}
           <img
-            src="/images/shopbanner.png"
+            src="/images/areabanners/shopbanner.png"
             alt=""
             width={1717}
             height={916}
@@ -163,7 +163,7 @@ export default async function ShopPage() {
       </div>
       <main className="relative z-10 w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
         <div className="mx-auto w-full max-w-5xl">
-          <GameTopBar username={user.username} characterName={character.name} characterClass={character.class} />
+          <GameTopBar characterName={character.name} characterClass={character.class} />
           <GameNav
             inTownRegion={inTownRegion}
             combatLocked={false}
@@ -185,33 +185,24 @@ export default async function ShopPage() {
             </div>
           </div>
           <div className="min-w-0 space-y-6">
-            <header className={marketPanelClass}>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500/90">Town market</p>
-          <h1 className="mt-1 font-serif text-2xl text-amber-100">Travelers&apos; stock by league and region</h1>
-          <p className="mt-2 text-sm text-zinc-300">
-            Full <span className="text-amber-200/90">common</span> catalog for your recommended region by level (today:{" "}
-            <strong className="text-zinc-200">{recommendedRegion.name}</strong>, Lv {recommendedRegion.minLevel}+). Every
-            kit and slot is listed; buy stays locked until you meet level, stats, and gold. Apothecary prices tick up with
-            tier.
-          </p>
-          <p className="mt-2 font-mono text-sm text-amber-200/90">Your gold: {character.gold}</p>
-          <Link
-            href="/"
-            className="mt-4 inline-block rounded-lg border border-zinc-700 bg-zinc-900/80 px-4 py-2 text-sm font-semibold text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
-          >
-            ← Town hub
-          </Link>
-            </header>
-
             <section className={marketPanelClass}>
               <h2 className={marketTitleClass}>Front counter</h2>
               <p className={marketSubtleTextClass}>
                 Quick consumables and crafting stock. Prices scale by your recommended tier.
               </p>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="font-mono text-sm text-zinc-100">🪙 Your gold: {character.gold}</p>
+                <Link
+                  href="/town"
+                  className="inline-block rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 hover:bg-white/10"
+                >
+                  ← Town hub
+                </Link>
+              </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-amber-900/40 bg-zinc-950/35 p-3">
+                <div className="rounded-lg border border-white/20 bg-black/50 p-3">
                   <p className={marketTitleClass}>🧪 Crimson tonic</p>
-                  <p className="mt-1 text-xs text-zinc-300">
+                  <p className="mt-1 text-xs text-zinc-200">
                     Fast out-of-combat heal. Carry cap: {MAX_POTIONS_IN_PACK}.
                   </p>
                   <form action={buyPotionAction} className="mt-3">
@@ -219,20 +210,20 @@ export default async function ShopPage() {
                       type="submit"
                       disabled={character.gold < tonicPrice || tonicFull}
                       title={tonicFull ? `Pack holds at most ${MAX_POTIONS_IN_PACK} tonics.` : undefined}
-                      className="w-full rounded-lg border border-amber-800/60 bg-amber-950/30 px-4 py-2.5 text-sm font-semibold text-amber-100 enabled:hover:bg-amber-900/35 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-semibold text-zinc-100 enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Buy tonic — {tonicPrice}g ({tonicCount}/{MAX_POTIONS_IN_PACK})
                     </button>
                   </form>
                 </div>
-                <div className="rounded-lg border border-amber-900/40 bg-zinc-950/35 p-3">
+                <div className="rounded-lg border border-white/20 bg-black/50 p-3">
                   <p className={marketTitleClass}>🪨 Smithing stone</p>
-                  <p className="mt-1 text-xs text-zinc-300">Used at the forge to reinforce equipped gear tiers.</p>
+                  <p className="mt-1 text-xs text-zinc-200">Used at the forge to reinforce equipped gear tiers.</p>
                   <form action={buySmithingStoneAction} className="mt-3">
                     <button
                       type="submit"
                       disabled={character.gold < stonePrice}
-                      className="w-full rounded-lg border border-amber-800/60 bg-amber-950/30 px-4 py-2.5 text-sm font-semibold text-amber-100 enabled:hover:bg-amber-900/35 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-semibold text-zinc-100 enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Buy smithing stone — {stonePrice}g
                     </button>
@@ -279,7 +270,7 @@ export default async function ShopPage() {
                       return (
                         <div
                           key={entry.id}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-900/35 bg-zinc-950/35 px-3 py-2 text-sm"
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/20 bg-black/50 px-3 py-2 text-sm"
                         >
                           <span>
                             <ItemHoverCard
@@ -300,7 +291,7 @@ export default async function ShopPage() {
                               </span>
                             </ItemHoverCard>
                             <span className="text-zinc-300"> ×{entry.quantity}</span>
-                            <span className="ml-2 font-mono text-xs text-amber-200/80">{entry.item.sellPrice}g each</span>
+                            <span className="ml-2 font-mono text-xs text-zinc-100/90">{entry.item.sellPrice}g each</span>
                           </span>
                           <div className="flex items-center gap-2">
                             <form action={sellItemAction}>

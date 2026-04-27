@@ -1,5 +1,6 @@
 import type { Item } from "@prisma/client";
 import { forgedStatsForEntry } from "@/lib/game/item-affixes";
+import { isMagicWeapon } from "@/lib/game/weapon-classification";
 
 /** Smithing tier from DB/UI — coerces so stale clients or missing fields never become "+undefined". */
 export function normalizeForgeLevel(forgeLevel?: number | null): number {
@@ -28,7 +29,7 @@ export function gearStatSummary(item: Item, slot: string, forgeLevel?: number | 
   const def = item.defense + forged.defense;
   const hp = item.hp + forged.hp;
   const parts: string[] = [];
-  if (atk) parts.push(`+${atk} ATK`);
+  if (atk) parts.push(`+${atk} ${isMagicWeapon({ ...item, slot }) ? "INT" : "ATK"}`);
   if (def) parts.push(`+${def} DEF`);
   if (hp) parts.push(`+${hp} HP`);
   return parts.join(" ");

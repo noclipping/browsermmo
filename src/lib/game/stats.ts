@@ -9,42 +9,9 @@ import {
   STR_ATK_FACTOR,
 } from "@/lib/game/constants";
 import { forgedAffixScaledBonuses, forgedStatsForEntry } from "@/lib/game/item-affixes";
+import { weaponType } from "@/lib/game/weapon-classification";
 
 type Equipped = CharacterEquipment & { item: Item | null };
-
-function weaponType(item: Item): "MAGIC" | "RANGED" | "DAGGER" | "MELEE" {
-  const key = item.key.toLowerCase();
-  const name = item.name.toLowerCase();
-  if (
-    key.includes("staff") ||
-    key.includes("rod") ||
-    key.includes("channel") ||
-    key.includes("focus") ||
-    name.includes("staff") ||
-    name.includes("archstaff") ||
-    name.includes("rod")
-  ) {
-    return "MAGIC";
-  }
-  if (
-    key.includes("bow") ||
-    key.includes("slingshot") ||
-    key.includes("recurve") ||
-    name.includes("bow") ||
-    name.includes("slingshot")
-  ) {
-    return "RANGED";
-  }
-  if (
-    key.includes("dagger") ||
-    key.includes("knife") ||
-    key.includes("dirk") ||
-    name.includes("dagger")
-  ) {
-    return "DAGGER";
-  }
-  return "MELEE";
-}
 
 export function buildCharacterStats(character: Character, equipment: Equipped[]) {
   const gear = equipment.reduce(

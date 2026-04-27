@@ -15,6 +15,8 @@ import { applyXp } from "@/lib/game/progression";
 import { rollOutskirtsBossInterval } from "@/lib/game/outskirts-boss";
 import { setOutskirtsBossCountersSql } from "@/lib/game/outskirts-sql";
 import { xpForOutcome } from "@/lib/game/combat-rewards";
+import { buildSoloEncounterUpdateData } from "@/lib/game/encounter-domain";
+import { logCombatTelemetry } from "@/lib/game/combat-telemetry";
 import { prisma } from "@/lib/prisma";
 
 type EncounterWithEnemy = Prisma.SoloCombatEncounterGetPayload<{ include: { enemy: true } }>;
@@ -83,6 +85,17 @@ async function handleFleeDefeat(character: Character, encounter: EncounterWithEn
     });
     await tx.soloCombatEncounter.delete({ where: { id: encounter.id } });
   });
+  logCombatTelemetry({
+    mode: "SOLO",
+    outcome: "DEFEAT",
+    characterClass: character.class,
+    characterLevel: character.level,
+    enemyKey: encounter.enemy.key,
+    enemyLevel: encounter.enemy.level,
+    turns: encounter.round,
+    playerHpRemaining: 0,
+    log,
+  });
 }
 
 export async function executeCombatFlee(character: Character, encounterId: string): Promise<CombatFleeExecuteResult> {
@@ -94,7 +107,7 @@ export async function executeCombatFlee(character: Character, encounterId: strin
   if (encounter.playerHp <= 0) {
     const defeatLog = [...asLog(encounter.log), "☠ You collapse before you can escape."];
     await handleFleeDefeat(character, encounter as EncounterWithEnemy, defeatLog);
-    revalidatePath("/", "layout");
+    revalidatePath("/town", "layout");
     revalidatePath("/adventure", "page");
     return { ok: false, error: "You were defeated before you could flee.", httpStatus: 400 };
   }
@@ -117,23 +130,44 @@ export async function executeCombatFlee(character: Character, encounterId: strin
     ];
     if (result.state.playerHp <= 0) {
       await handleFleeDefeat(character, encounter as EncounterWithEnemy, [...log, "☠ The failed getaway gets you killed."]);
-      revalidatePath("/", "layout");
+      revalidatePath("/town", "layout");
       revalidatePath("/adventure", "page");
       return { ok: false, error: "Flee failed, and you were defeated.", httpStatus: 400 };
     }
-    await prisma.soloCombatEncounter.update({
-      where: { id: encounter.id },
-      data: {
-        playerHp: result.state.playerHp,
-        enemyHp: result.state.enemyHp,
+    const updateData = buildSoloEncounterUpdateData({
+      row: encounter,
+      next: {
         round: nextRound,
         enemyIntent: nextIntent,
-        skillCooldownRemaining: Math.max(0, encounter.skillCooldownRemaining - 1),
-        potionCooldownRemaining: Math.max(0, encounter.potionCooldownRemaining - 1),
-        log,
+        playerHp: result.state.playerHp,
+        enemyHp: result.state.enemyHp,
+        playerMana: result.state.playerMana,
+        playerLifeSteal: result.state.playerLifeSteal,
+        playerSkillPowerBonus: result.state.playerSkillPowerBonus,
+        enemyPendingDamageMult: result.state.enemyPendingDamageMult,
+        enemyPendingArmorVsPlayer: result.state.enemyPendingArmorVsPlayer,
       },
+      skillCooldownRemaining: Math.max(0, encounter.skillCooldownRemaining - 1),
+      potionCooldownRemaining: Math.max(0, encounter.potionCooldownRemaining - 1),
+      log,
     });
-    revalidatePath("/", "layout");
+
+    await prisma.soloCombatEncounter.update({
+      where: { id: encounter.id },
+      data: updateData,
+    });
+    logCombatTelemetry({
+      mode: "SOLO",
+      outcome: "FLEE_FAIL",
+      characterClass: character.class,
+      characterLevel: character.level,
+      enemyKey: encounter.enemy.key,
+      enemyLevel: encounter.enemy.level,
+      turns: nextRound,
+      playerHpRemaining: result.state.playerHp,
+      log,
+    });
+    revalidatePath("/town", "layout");
     revalidatePath("/adventure", "page");
     return { ok: false, error: "Flee failed. You are still locked in combat.", httpStatus: 400 };
   }
@@ -145,8 +179,19 @@ export async function executeCombatFlee(character: Character, encounterId: strin
     });
     await tx.soloCombatEncounter.delete({ where: { id: encounter.id } });
   });
+  logCombatTelemetry({
+    mode: "SOLO",
+    outcome: "FLEE_SUCCESS",
+    characterClass: character.class,
+    characterLevel: character.level,
+    enemyKey: encounter.enemy.key,
+    enemyLevel: encounter.enemy.level,
+    turns: encounter.round,
+    playerHpRemaining: encounter.playerHp,
+    log: asLog(encounter.log),
+  });
 
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
   revalidatePath("/adventure", "page");
   return { ok: true };
 }

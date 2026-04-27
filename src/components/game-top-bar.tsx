@@ -4,11 +4,9 @@ import { CLASS_DISPLAY_NAME } from "@/lib/game/constants";
 import type { CharacterClass } from "@prisma/client";
 
 export function GameTopBar({
-  username,
   characterName,
   characterClass,
 }: {
-  username: string;
   characterName: string;
   characterClass: CharacterClass;
 }) {
@@ -19,9 +17,7 @@ export function GameTopBar({
           Browser RPG · Phase 3
         </p>
         <h1 className="font-serif text-2xl text-amber-50">{characterName}</h1>
-        <p className="text-sm text-zinc-500">
-          {username} · {CLASS_DISPLAY_NAME[characterClass]}
-        </p>
+        <p className="text-sm text-zinc-500">{CLASS_DISPLAY_NAME[characterClass]}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <form

@@ -70,15 +70,15 @@ export function ShopGearList({
 
   return (
     <div>
-      <div className="mb-4 space-y-3 rounded-lg border border-zinc-800 bg-black/20 p-3">
+      <div className="mb-4 space-y-3 rounded-lg border border-white/20 bg-black/50 p-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Filter by kit</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/75">Filter by kit</p>
           <div className="mt-2 flex flex-wrap gap-3">
             {CLASS_OPTIONS.map((o) => (
-              <label key={o.id} className="flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
+              <label key={o.id} className="flex cursor-pointer items-center gap-2 text-sm text-zinc-100">
                 <input
                   type="checkbox"
-                  className="size-4 rounded border-zinc-600 bg-zinc-900"
+                  className="size-4 rounded border-zinc-500 bg-zinc-900"
                   checked={classOn.has(o.id)}
                   onChange={(e) => setClassOn(subsetToggle(classOn, o.id, e.target.checked))}
                 />
@@ -88,13 +88,13 @@ export function ShopGearList({
           </div>
         </div>
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Filter by stat requirement</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/75">Filter by stat requirement</p>
           <div className="mt-2 flex flex-wrap gap-3">
             {STAT_OPTIONS.map((o) => (
-              <label key={o.id} className="flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
+              <label key={o.id} className="flex cursor-pointer items-center gap-2 text-sm text-zinc-100">
                 <input
                   type="checkbox"
-                  className="size-4 rounded border-zinc-600 bg-zinc-900"
+                  className="size-4 rounded border-zinc-500 bg-zinc-900"
                   checked={statOn.has(o.id)}
                   onChange={(e) => setStatOn(subsetToggle(statOn, o.id, e.target.checked))}
                 />
@@ -103,7 +103,7 @@ export function ShopGearList({
             ))}
           </div>
         </div>
-        <p className="text-xs text-zinc-600">
+        <p className="text-xs text-zinc-300/90">
           Showing {visible.length} of {rows.length} listings. Toggle kits and stat gates to widen or narrow stock.
         </p>
       </div>
@@ -125,7 +125,7 @@ export function ShopGearList({
             return (
               <li
                 key={item.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-black/25 px-3 py-3"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/20 bg-black/50 px-3 py-3"
               >
                 <div className="min-w-0 flex-1">
                   <ItemHoverCard item={item} forgeLevel={0} compareAgainst={compareAgainst}>
@@ -133,25 +133,25 @@ export function ShopGearList({
                       {item.emoji} {item.name}
                     </span>
                   </ItemHoverCard>
-                  <p className="mt-1 font-mono text-xs text-zinc-500">
+                  <p className="mt-1 font-mono text-xs text-zinc-300">
                     {row.statLine} · Lv {item.requiredLevel}+
                     {row.reqLine ? ` · ${row.reqLine}` : ""}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-zinc-600">
+                  <p className="mt-0.5 text-[11px] text-zinc-300/90">
                     Slot {item.slot.replace(/_/g, " ")} ·{" "}
                     {row.playstyle === "ROGUE" ? "Ranger kit" : row.playstyle === "NEUTRAL" ? "Shared" : `${row.playstyle} kit`}
                   </p>
-                  {blocked ? <p className="mt-1 text-xs text-amber-600/90">{row.purchaseBlock}</p> : null}
+                  {blocked ? <p className="mt-1 text-xs text-red-300/90">{row.purchaseBlock}</p> : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <span className="font-mono text-sm text-amber-200/90">{row.price}g</span>
+                  <span className="font-mono text-sm text-zinc-100">{row.price}g</span>
                   <form action={buyAction}>
                     <input type="hidden" name="itemId" value={item.id} />
                     <button
                       type="submit"
                       disabled={blocked}
                       title={row.purchaseBlock ?? undefined}
-                      className="rounded-lg border border-amber-800/60 bg-amber-950/40 px-3 py-2 text-xs font-semibold text-amber-100 enabled:hover:bg-amber-900/35 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-100 enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Buy
                     </button>

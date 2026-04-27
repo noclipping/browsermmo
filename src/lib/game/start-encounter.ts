@@ -138,8 +138,8 @@ export async function createSoloEncounter(
       characterId: params.character.id,
       enemyId: params.enemy.id,
       status: "ACTIVE",
-      playerHp: Math.min(params.character.hp, computed.maxHp),
-      playerMaxHp: computed.maxHp,
+      playerHp: Math.min(params.character.hp, params.character.maxHp),
+      playerMaxHp: params.character.maxHp,
       enemyHp: scaledEnemyStat(params.enemy.hp),
       enemyMaxHp: scaledEnemyStat(params.enemy.hp),
       // Class-specific basic attack scaling:

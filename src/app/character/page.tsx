@@ -13,6 +13,7 @@ import { CLASS_SKILLS } from "@/lib/game/constants";
 import { requiredXpForLevel } from "@/lib/game/progression";
 import { GameNav } from "@/components/game-nav";
 import { GameTopBar } from "@/components/game-top-bar";
+import { CharacterPortraitPicker } from "@/components/character-portrait-picker";
 import { MobileAdventureOverlays } from "@/components/mobile-adventure-overlays";
 import { requireCharacter, requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
@@ -22,6 +23,7 @@ import { rarityNameClass } from "@/lib/game/item-rarity-styles";
 import { buildCharacterStats } from "@/lib/game/stats";
 import { ItemHoverCard } from "@/components/item-hover-card";
 import { WorldChatPanel } from "@/components/world-chat-panel";
+import { updateCharacterPortraitAction } from "@/app/actions/character";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +67,7 @@ export default async function CharacterPage() {
         <div className="relative w-full max-md:min-h-[72vh] max-md:overflow-hidden leading-none">
           {/* eslint-disable-next-line @next/next/no-img-element -- decorative full-bleed art; md+ intrinsic sizing shows full frame */}
           <img
-            src="/images/charactersheetbanner.png"
+            src="/images/areabanners/charactersheetbanner.png"
             alt=""
             width={1717}
             height={916}
@@ -77,7 +79,7 @@ export default async function CharacterPage() {
       </div>
       <main className="relative z-10 w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
         <div className="mx-auto w-full max-w-5xl">
-          <GameTopBar username={user.username} characterName={character.name} characterClass={character.class} />
+          <GameTopBar characterName={character.name} characterClass={character.class} />
           <GameNav
             inTownRegion={inTownRegion}
             combatLocked={combatLocked}
@@ -102,6 +104,13 @@ export default async function CharacterPage() {
             <section className="grid gap-4 lg:grid-cols-[minmax(260px,320px)_1fr]">
           <article className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4 shadow-md">
             <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Sheet</h2>
+            <div className="mt-3">
+              <CharacterPortraitPicker
+                characterClass={character.class}
+                portraitKey={character.portraitKey}
+                updatePortraitAction={updateCharacterPortraitAction}
+              />
+            </div>
             <div className="mt-3 space-y-1 font-mono text-sm text-zinc-300">
               <p>
                 Lv {character.level} · XP {character.xp}/{requiredXpForLevel(character.level)}

@@ -34,7 +34,7 @@ export function GameNav({
       className="mb-6 flex flex-wrap gap-2 border-b border-amber-900/25 pb-4"
       aria-label="Main"
     >
-      {pathname === "/" ? (
+      {pathname === "/town" ? (
         <span
           className={`${pill} ${activeCls} cursor-default`}
           aria-current="page"
@@ -50,7 +50,7 @@ export function GameNav({
         </span>
       ) : inTownRegion ? (
         <Link
-          href="/"
+          href="/town"
           className={`${pill} ${tap} ${inactive}`}
           title="Town hub"
         >

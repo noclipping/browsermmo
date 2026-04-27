@@ -1,4 +1,4 @@
-import { PrismaClient, CharacterClass, ItemSlot, Rarity } from "@prisma/client";
+import { PrismaClient, CharacterClass, ItemSlot, Rarity, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import {
   CLASS_BASE_STATS,
@@ -10,6 +10,33 @@ import {
 
 const prisma = new PrismaClient();
 const SLOT_ORDER: ItemSlot[] = ["WEAPON", "HELMET", "CHEST", "GLOVES", "BOOTS", "RING", "AMULET"];
+const ENEMY_DIFFICULTY_MULTIPLIER = 1.25;
+
+type EnemyStatBlock = { hp: number; attack: number; defense: number; speed: number };
+
+function scaleEnemyCombatStat(value: number): number {
+  return Math.max(1, Math.floor(value * ENEMY_DIFFICULTY_MULTIPLIER));
+}
+
+function applyEnemyDifficulty<T extends EnemyStatBlock>(enemy: T): T {
+  return {
+    ...enemy,
+    hp: scaleEnemyCombatStat(enemy.hp),
+    attack: scaleEnemyCombatStat(enemy.attack),
+    defense: scaleEnemyCombatStat(enemy.defense),
+    speed: scaleEnemyCombatStat(enemy.speed),
+  };
+}
+
+function upsertEnemyWithDifficulty(args: Prisma.EnemyUpsertArgs) {
+  const update = applyEnemyDifficulty(args.update as Prisma.EnemyUncheckedUpdateInput & EnemyStatBlock);
+  const create = applyEnemyDifficulty(args.create as Prisma.EnemyUncheckedCreateInput & EnemyStatBlock);
+  return prisma.enemy.upsert({
+    ...args,
+    update,
+    create,
+  });
+}
 
 type ItemSeed = {
   key: string;
@@ -397,6 +424,13 @@ const REGIONAL_WEAPON_DROP_P: Record<WeaponDropRarity, number> = {
 };
 const REGIONAL_GODLY_WEAPON_DROP_P = 0.0005;
 const REGIONAL_COMMON_APPAREL_DROP_P = 0.006;
+const BOSS_WEAPON_DROP_P: Record<WeaponDropRarity, number> = {
+  COMMON: REGIONAL_WEAPON_DROP_P.COMMON,
+  UNCOMMON: REGIONAL_WEAPON_DROP_P.UNCOMMON,
+  RARE: REGIONAL_WEAPON_DROP_P.RARE,
+  LEGENDARY: 0.028,
+};
+const BOSS_GODLY_WEAPON_DROP_P = 0.004;
 
 function pushRegionalWeaponDrops(
   drops: Array<{ enemyId: string; itemKey: string; chance: number }>,
@@ -436,6 +470,28 @@ function pushRegionalCommonApparelDrops(
         });
       }
     }
+  }
+}
+
+/** Bosses get elevated legendary/godly odds to make clears feel special. */
+function pushBossWeaponDrops(
+  drops: Array<{ enemyId: string; itemKey: string; chance: number }>,
+  enemyId: string,
+  tier: number,
+) {
+  for (const cls of WEAPON_CLASS_KEYS) {
+    for (const rarity of WEAPON_DROP_RARITIES) {
+      drops.push({
+        enemyId,
+        itemKey: regionalWeaponItemKey(tier, cls, rarity),
+        chance: BOSS_WEAPON_DROP_P[rarity],
+      });
+    }
+    drops.push({
+      enemyId,
+      itemKey: regionalGodlyWeaponItemKey(tier, cls),
+      chance: BOSS_GODLY_WEAPON_DROP_P,
+    });
   }
 }
 
@@ -707,12 +763,12 @@ async function main() {
     });
   }
 
-  const rat = await prisma.enemy.upsert({
+  const rat = await upsertEnemyWithDifficulty({
     where: { key: "sewer_rat" },
     update: { name: "Sewer Rat", emoji: "🐀", level: 1, hp: 36, attack: 8, defense: 6, speed: 6, xpReward: 24, goldMin: 3, goldMax: 8, regionId: town.id, isElite: false },
     create: { key: "sewer_rat", name: "Sewer Rat", emoji: "🐀", level: 1, hp: 36, attack: 8, defense: 6, speed: 6, xpReward: 24, goldMin: 3, goldMax: 8, regionId: town.id, isElite: false },
   });
-  const plague = await prisma.enemy.upsert({
+  const plague = await upsertEnemyWithDifficulty({
     where: { key: "plague_burrower" },
     update: {
       name: "Plague Burrower",
@@ -744,7 +800,7 @@ async function main() {
       isElite: true,
     },
   });
-  const ditch = await prisma.enemy.upsert({
+  const ditch = await upsertEnemyWithDifficulty({
     where: { key: "ditch_scrapper" },
     update: {
       name: "Ditch Scrapper",
@@ -778,7 +834,7 @@ async function main() {
       isAdventureMiniBoss: false,
     },
   });
-  const gutter = await prisma.enemy.upsert({
+  const gutter = await upsertEnemyWithDifficulty({
     where: { key: "gutter_cur" },
     update: {
       name: "Gutter Cur",
@@ -812,7 +868,7 @@ async function main() {
       isAdventureMiniBoss: false,
     },
   });
-  const snail = await prisma.enemy.upsert({
+  const snail = await upsertEnemyWithDifficulty({
     where: { key: "colossal_snail" },
     update: {
       name: "Colossal Snail",
@@ -846,7 +902,7 @@ async function main() {
       isAdventureMiniBoss: false,
     },
   });
-  const fencer = await prisma.enemy.upsert({
+  const fencer = await upsertEnemyWithDifficulty({
     where: { key: "sewer_fencer" },
     update: {
       name: "Sewer Fencer",
@@ -880,12 +936,12 @@ async function main() {
       isAdventureMiniBoss: true,
     },
   });
-  const wolf = await prisma.enemy.upsert({
+  const wolf = await upsertEnemyWithDifficulty({
     where: { key: "dire_wolf" },
     update: { name: "Dire Wolf", emoji: "🐺", level: 5, hp: 110, attack: 22, defense: 13, speed: 10, xpReward: 78, goldMin: 14, goldMax: 28, regionId: forest.id, isElite: false },
     create: { key: "dire_wolf", name: "Dire Wolf", emoji: "🐺", level: 5, hp: 110, attack: 22, defense: 13, speed: 10, xpReward: 78, goldMin: 14, goldMax: 28, regionId: forest.id, isElite: false },
   });
-  const alpha = await prisma.enemy.upsert({
+  const alpha = await upsertEnemyWithDifficulty({
     where: { key: "alpha_dire_wolf" },
     update: {
       name: "Alpha Dire Wolf",
@@ -917,7 +973,41 @@ async function main() {
       isElite: true,
     },
   });
-  const jackal = await prisma.enemy.upsert({
+  const forestEnt = await upsertEnemyWithDifficulty({
+    where: { key: "forest_tree_ent" },
+    update: {
+      name: "Forest Tree Ent",
+      emoji: "🌳",
+      level: 8,
+      hp: 214,
+      attack: 34,
+      defense: 24,
+      speed: 7,
+      xpReward: 156,
+      goldMin: 30,
+      goldMax: 56,
+      regionId: forest.id,
+      isElite: true,
+      isAdventureMiniBoss: true,
+    },
+    create: {
+      key: "forest_tree_ent",
+      name: "Forest Tree Ent",
+      emoji: "🌳",
+      level: 8,
+      hp: 214,
+      attack: 34,
+      defense: 24,
+      speed: 7,
+      xpReward: 156,
+      goldMin: 30,
+      goldMax: 56,
+      regionId: forest.id,
+      isElite: true,
+      isAdventureMiniBoss: true,
+    },
+  });
+  const jackal = await upsertEnemyWithDifficulty({
     where: { key: "gloom_jackal" },
     update: {
       name: "Gloom Jackal",
@@ -951,41 +1041,77 @@ async function main() {
       isElite: false,
     },
   });
-  const imp = await prisma.enemy.upsert({
+  const imp = await upsertEnemyWithDifficulty({
     where: { key: "cave_imp" },
     update: {
       name: "Cave Imp",
       emoji: "👺",
       level: 11,
-      hp: 248,
-      attack: 44,
-      defense: 24,
+      hp: 208,
+      attack: 36,
+      defense: 21,
       speed: 8,
-      xpReward: 196,
-      goldMin: 34,
-      goldMax: 66,
+      xpReward: 232,
+      goldMin: 36,
+      goldMax: 72,
       regionId: ruins.id,
       isDungeonBoss: true,
-      isElite: false,
+      isElite: true,
+      isAdventureMiniBoss: false,
     },
     create: {
       key: "cave_imp",
       name: "Cave Imp",
       emoji: "👺",
       level: 10,
-      hp: 118,
-      attack: 22,
-      defense: 15,
+      hp: 104,
+      attack: 18,
+      defense: 13,
       speed: 8,
-      xpReward: 92,
-      goldMin: 20,
-      goldMax: 42,
+      xpReward: 116,
+      goldMin: 18,
+      goldMax: 38,
       regionId: ruins.id,
       isDungeonBoss: true,
-      isElite: false,
+      isElite: true,
+      isAdventureMiniBoss: false,
     },
   });
-  const revenant = await prisma.enemy.upsert({
+  const ruinsColossus = await upsertEnemyWithDifficulty({
+    where: { key: "ruins_colossus" },
+    update: {
+      name: "Ruins Colossus",
+      emoji: "🗿",
+      level: 12,
+      hp: 272,
+      attack: 42,
+      defense: 28,
+      speed: 7,
+      xpReward: 268,
+      goldMin: 42,
+      goldMax: 82,
+      regionId: ruins.id,
+      isElite: true,
+      isAdventureMiniBoss: true,
+    },
+    create: {
+      key: "ruins_colossus",
+      name: "Ruins Colossus",
+      emoji: "🗿",
+      level: 11,
+      hp: 148,
+      attack: 24,
+      defense: 16,
+      speed: 7,
+      xpReward: 136,
+      goldMin: 22,
+      goldMax: 46,
+      regionId: ruins.id,
+      isElite: true,
+      isAdventureMiniBoss: true,
+    },
+  });
+  const revenant = await upsertEnemyWithDifficulty({
     where: { key: "tomb_revenant" },
     update: {
       name: "Tomb Revenant",
@@ -1019,7 +1145,7 @@ async function main() {
       isDungeonBoss: false,
     },
   });
-  const wraith = await prisma.enemy.upsert({
+  const wraith = await upsertEnemyWithDifficulty({
     where: { key: "crypt_wraith" },
     update: {
       name: "Crypt Wraith",
@@ -1051,7 +1177,7 @@ async function main() {
       isElite: false,
     },
   });
-  const boneKnight = await prisma.enemy.upsert({
+  const boneKnight = await upsertEnemyWithDifficulty({
     where: { key: "bone_knight" },
     update: {
       name: "Bone Knight",
@@ -1083,7 +1209,7 @@ async function main() {
       isElite: false,
     },
   });
-  const warden = await prisma.enemy.upsert({
+  const warden = await upsertEnemyWithDifficulty({
     where: { key: "grave_warden" },
     update: {
       name: "Grave Warden",
@@ -1098,6 +1224,7 @@ async function main() {
       goldMax: 104,
       regionId: catacombs.id,
       isElite: true,
+      isAdventureMiniBoss: true,
     },
     create: {
       key: "grave_warden",
@@ -1113,6 +1240,7 @@ async function main() {
       goldMax: 68,
       regionId: catacombs.id,
       isElite: true,
+      isAdventureMiniBoss: true,
     },
   });
 
@@ -1201,12 +1329,18 @@ async function main() {
   ];
 
   pushRegionalWeaponDrops(dropMap, [rat.id, plague.id, ditch.id, gutter.id, snail.id, fencer.id], 0);
-  pushRegionalWeaponDrops(dropMap, [wolf.id, alpha.id], 1);
-  pushRegionalWeaponDrops(dropMap, [jackal.id, imp.id, revenant.id], 2);
+  pushRegionalWeaponDrops(dropMap, [wolf.id, alpha.id, forestEnt.id], 1);
+  pushRegionalWeaponDrops(dropMap, [jackal.id, imp.id, revenant.id, ruinsColossus.id], 2);
   pushRegionalWeaponDrops(dropMap, [wraith.id, boneKnight.id, warden.id], 3);
   pushRegionalCommonApparelDrops(dropMap, [rat.id, plague.id, ditch.id, gutter.id, snail.id, fencer.id], 0);
-  pushRegionalCommonApparelDrops(dropMap, [wolf.id, alpha.id], 1);
-  pushRegionalCommonApparelDrops(dropMap, [jackal.id, imp.id, revenant.id], 2);
+  pushRegionalCommonApparelDrops(dropMap, [wolf.id, alpha.id, forestEnt.id], 1);
+
+  // Bosses in each region receive higher legendary/godly weapon rates.
+  pushBossWeaponDrops(dropMap, fencer.id, 0);
+  pushBossWeaponDrops(dropMap, forestEnt.id, 1);
+  pushBossWeaponDrops(dropMap, ruinsColossus.id, 2);
+  pushBossWeaponDrops(dropMap, warden.id, 3);
+  pushRegionalCommonApparelDrops(dropMap, [jackal.id, imp.id, revenant.id, ruinsColossus.id], 2);
   pushRegionalCommonApparelDrops(dropMap, [wraith.id, boneKnight.id, warden.id], 3);
 
   await prisma.lootTableEntry.deleteMany({});

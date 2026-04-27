@@ -42,8 +42,11 @@ export const ADVENTURE_REGIONS: Record<string, AdventureRegionConfig> = {
     potionChance: 0.07,
     xpChance: 0.07,
     combatEnemies: [{ key: "dire_wolf", weight: 1 }],
-    eliteEnemies: [{ key: "alpha_dire_wolf", weight: 1 }],
-    eliteChance: 0.13,
+    eliteEnemies: [
+      { key: "alpha_dire_wolf", weight: 0.7 },
+      { key: "forest_tree_ent", weight: 0.3 },
+    ],
+    eliteChance: 0.14,
     goldMin: 6,
     goldMax: 16,
   },
@@ -52,12 +55,13 @@ export const ADVENTURE_REGIONS: Record<string, AdventureRegionConfig> = {
     goldChance: 0.07,
     potionChance: 0.06,
     xpChance: 0.07,
-    combatEnemies: [
-      { key: "gloom_jackal", weight: 0.5 },
-      { key: "cave_imp", weight: 0.5 },
+    combatEnemies: [{ key: "gloom_jackal", weight: 1 }],
+    eliteEnemies: [
+      { key: "tomb_revenant", weight: 0.5 },
+      { key: "cave_imp", weight: 0.3 },
+      { key: "ruins_colossus", weight: 0.2 },
     ],
-    eliteEnemies: [{ key: "tomb_revenant", weight: 1 }],
-    eliteChance: 0.12,
+    eliteChance: 0.14,
     goldMin: 10,
     goldMax: 24,
   },
@@ -127,7 +131,15 @@ const COMBAT_FLAVOR: Record<string, string[]> = {
     "The alpha drops from a ledge — scarred muzzle, murder in its stride.",
     "This wolf is bigger than the rest: the pack leader has come for you.",
   ],
+  forest_tree_ent: [
+    "Roots tear through stone — a towering Tree Ent lurches from the forest edge!",
+    "Bark groans like thunder. An ancient ent turns its hollow gaze toward you.",
+  ],
   cave_imp: ["A cave imp drops from above, cackling!", "Green fire dances in its hands — an imp blocks the way."],
+  ruins_colossus: [
+    "Stone grinds on stone — a Ruins Colossus tears free from a collapsed archway!",
+    "Ancient masonry lurches to life. A colossal guardian bars your path.",
+  ],
   gloom_jackal: ["A jackal built for the dark slips from the rubble.", "Low growl — a gloom jackal claims this hall."],
   tomb_revenant: [
     "Armor clatters — a revenant knight rises, blade humming with spite!",

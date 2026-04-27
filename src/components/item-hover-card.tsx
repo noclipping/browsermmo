@@ -6,6 +6,7 @@ import { normalizeForgeLevel } from "@/lib/game/item-display";
 import { formatItemStatBlock } from "@/lib/game/item-tooltip-text";
 import { formatItemStatRequirements } from "@/lib/game/item-requirements";
 import { rarityBadgeClass, rarityNameClass } from "@/lib/game/item-rarity-styles";
+import { isMagicWeapon } from "@/lib/game/weapon-classification";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -80,8 +81,10 @@ function buildCombinedStats(params: {
     },
     { forgeLevel: params.forgeLevel, rarity: params.item.rarity },
   );
+  const offense = params.item.attack + forged.attack;
+  const magicWeapon = isMagicWeapon(params.item);
   return {
-    attack: params.item.attack + forged.attack,
+    attack: magicWeapon ? 0 : offense,
     defense: params.item.defense + forged.defense,
     hp: params.item.hp + forged.hp,
     speed: params.item.speed,
@@ -90,7 +93,7 @@ function buildCombinedStats(params: {
     skillPower: affix.bonusSkillPower,
     strength: affix.bonusStrength,
     constitution: affix.bonusConstitution,
-    intelligence: affix.bonusIntelligence,
+    intelligence: affix.bonusIntelligence + (magicWeapon ? offense : 0),
     dexterity: affix.bonusDexterity,
   };
 }

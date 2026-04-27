@@ -11,9 +11,9 @@ export function RegisterForm() {
   const [error, action, pending] = useActionState(registerAction, null);
   return (
     <form action={action} className="mt-6 space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-      <div><label className="text-sm">Username</label><Input name="username" minLength={3} required /></div>
       <div><label className="text-sm">Email</label><Input name="email" type="email" required /></div>
       <div><label className="text-sm">Password</label><Input name="password" type="password" minLength={8} required /></div>
+      <div><label className="text-sm">Confirm password</label><Input name="confirmPassword" type="password" minLength={8} required /></div>
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
       <button disabled={pending} className="w-full rounded bg-emerald-600 py-2 font-medium disabled:opacity-70">{pending ? "Creating..." : "Create account"}</button>
     </form>

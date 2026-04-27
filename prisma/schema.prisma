@@ -71,6 +71,7 @@ model Session {
 model Character {
   id             String               @id @default(cuid())
   name           String
+  portraitKey    String?
   userId         String
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   class          CharacterClass
@@ -103,7 +104,7 @@ model Character {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
-  @@unique([userId, name])
+  @@unique([name])
 }
 
 model Region {

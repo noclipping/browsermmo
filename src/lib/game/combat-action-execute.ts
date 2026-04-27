@@ -19,6 +19,10 @@ import { rollOutskirtsBossInterval } from "@/lib/game/outskirts-boss";
 import { incrementOutskirtsWinsSql, setOutskirtsBossCountersSql } from "@/lib/game/outskirts-sql";
 import { enemyKindFromRow } from "@/lib/game/start-encounter";
 import { computeFleeChance } from "@/lib/game/combat-flee-execute";
+import {
+  buildSoloEncounterUpdateData,
+} from "@/lib/game/encounter-domain";
+import { logCombatTelemetry } from "@/lib/game/combat-telemetry";
 import { prisma } from "@/lib/prisma";
 
 type CombatActionKind = "ATTACK" | "DEFEND" | "POTION" | "SKILL" | "AUTO";
@@ -290,22 +294,27 @@ export async function executeCombatAction(
           ? POTION_COOLDOWN_AFTER_USE_TURNS
           : Math.max(0, encounter.potionCooldownRemaining - 1);
 
-    await prisma.soloCombatEncounter.update({
-      where: { id: encounter.id },
-      data: {
-        playerHp: state.playerHp,
-        playerSpeed: state.playerMana,
-        enemyHp: state.enemyHp,
+    const updateData = buildSoloEncounterUpdateData({
+      row: encounter,
+      next: {
         round: state.round,
         enemyIntent: nextIntent,
-        skillCooldownRemaining: nextSkillCd,
-        potionCooldownRemaining: nextPotionCd,
-        enemyPendingDamageMult: state.enemyPendingDamageMult,
-        enemyPendingArmorVsPlayer: state.enemyPendingArmorVsPlayer,
+        playerHp: state.playerHp,
+        enemyHp: state.enemyHp,
+        playerMana: state.playerMana,
         playerLifeSteal: state.playerLifeSteal,
         playerSkillPowerBonus: state.playerSkillPowerBonus,
-        log,
+        enemyPendingDamageMult: state.enemyPendingDamageMult,
+        enemyPendingArmorVsPlayer: state.enemyPendingArmorVsPlayer,
       },
+      skillCooldownRemaining: nextSkillCd,
+      potionCooldownRemaining: nextPotionCd,
+      log,
+    });
+
+    await prisma.soloCombatEncounter.update({
+      where: { id: encounter.id },
+      data: updateData,
     });
 
     const potionCount = Math.max(
@@ -363,8 +372,19 @@ export async function executeCombatAction(
       });
       await tx.soloCombatEncounter.delete({ where: { id: encounter.id } });
     });
+    logCombatTelemetry({
+      mode: "SOLO",
+      outcome: "VICTORY",
+      characterClass: character.class,
+      characterLevel: character.level,
+      enemyKey: enemy.key,
+      enemyLevel: enemy.level,
+      turns: state.round,
+      playerHpRemaining: state.playerHp,
+      log,
+    });
 
-    revalidatePath("/", "layout");
+    revalidatePath("/town", "layout");
     revalidatePath("/adventure", "page");
     const potionCount = await potionCountForCharacter(character.id);
     const droppedItems = droppedItemIds.length === 0 ? [] : await prisma.item.findMany({ where: { id: { in: droppedItemIds } } });
@@ -437,8 +457,19 @@ export async function executeCombatAction(
     });
     await tx.soloCombatEncounter.delete({ where: { id: encounter.id } });
   });
+  logCombatTelemetry({
+    mode: "SOLO",
+    outcome: "DEFEAT",
+    characterClass: character.class,
+    characterLevel: character.level,
+    enemyKey: enemy.key,
+    enemyLevel: enemy.level,
+    turns: state.round,
+    playerHpRemaining: 0,
+    log,
+  });
 
-  revalidatePath("/", "layout");
+  revalidatePath("/town", "layout");
   revalidatePath("/adventure", "page");
   const potionCount = await potionCountForCharacter(character.id);
   return {
