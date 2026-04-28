@@ -102,15 +102,39 @@ function asLog(value: unknown): string[] {
 async function potionCountForCharacter(characterId: string): Promise<number> {
   const potionItem = await prisma.item.findUnique({ where: { key: HEALTH_POTION_ITEM_KEY } });
   if (!potionItem) return 0;
-  const inv = await prisma.inventoryItem.findUnique({
-    where: { characterId_itemId: { characterId, itemId: potionItem.id } },
+  const inv = await prisma.inventoryItem.findFirst({
+    where: {
+      characterId,
+      itemId: potionItem.id,
+      forgeLevel: 0,
+      affixPrefix: null,
+      bonusLifeSteal: 0,
+      bonusCritChance: 0,
+      bonusSkillPower: 0,
+      bonusStrength: 0,
+      bonusConstitution: 0,
+      bonusIntelligence: 0,
+      bonusDexterity: 0,
+    },
   });
   return inv?.quantity ?? 0;
 }
 
 async function consumeOnePotion(characterId: string, potionItemId: string) {
-  const inv = await prisma.inventoryItem.findUnique({
-    where: { characterId_itemId: { characterId, itemId: potionItemId } },
+  const inv = await prisma.inventoryItem.findFirst({
+    where: {
+      characterId,
+      itemId: potionItemId,
+      forgeLevel: 0,
+      affixPrefix: null,
+      bonusLifeSteal: 0,
+      bonusCritChance: 0,
+      bonusSkillPower: 0,
+      bonusStrength: 0,
+      bonusConstitution: 0,
+      bonusIntelligence: 0,
+      bonusDexterity: 0,
+    },
   });
   if (!inv || inv.quantity < 1) return false;
   if (inv.quantity <= 1) {
@@ -135,8 +159,20 @@ async function addDroppedItemTx(
     });
     return;
   }
-  const inv = await tx.inventoryItem.findUnique({
-    where: { characterId_itemId: { characterId: params.characterId, itemId: params.itemId } },
+  const inv = await tx.inventoryItem.findFirst({
+    where: {
+      characterId: params.characterId,
+      itemId: params.itemId,
+      forgeLevel: 0,
+      affixPrefix: null,
+      bonusLifeSteal: 0,
+      bonusCritChance: 0,
+      bonusSkillPower: 0,
+      bonusStrength: 0,
+      bonusConstitution: 0,
+      bonusIntelligence: 0,
+      bonusDexterity: 0,
+    },
   });
   if (!inv) {
     const rolled = rollAffixesForItem({ item: dropped, characterClass: params.characterClass });
@@ -243,8 +279,20 @@ export async function executeCombatAction(
       if (potionsUsedSoFar >= MAX_POTIONS_PER_BATTLE) {
         return { ok: false, error: `You can only drink ${MAX_POTIONS_PER_BATTLE} tonics per battle.`, httpStatus: 400 };
       }
-      const inv = await prisma.inventoryItem.findUnique({
-        where: { characterId_itemId: { characterId: character.id, itemId: potionItem.id } },
+      const inv = await prisma.inventoryItem.findFirst({
+        where: {
+          characterId: character.id,
+          itemId: potionItem.id,
+          forgeLevel: 0,
+          affixPrefix: null,
+          bonusLifeSteal: 0,
+          bonusCritChance: 0,
+          bonusSkillPower: 0,
+          bonusStrength: 0,
+          bonusConstitution: 0,
+          bonusIntelligence: 0,
+          bonusDexterity: 0,
+        },
       });
       if (!inv || inv.quantity < 1) return { ok: false, error: "You have no potions.", httpStatus: 400 };
       if (encounter.potionCooldownRemaining > 0) {

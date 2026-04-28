@@ -47,7 +47,9 @@ export function AdventureLoadoutPanel({
   const xpNeeded = requiredXpForLevel(character.level);
   const xpPct = xpNeeded > 0 ? Math.min(100, Math.round((character.xp / xpNeeded) * 100)) : 0;
   const hpPct = character.maxHp > 0 ? Math.min(100, Math.round((character.hp / character.maxHp) * 100)) : 0;
-  const tonicCount = inventory.find((r) => r.item.key === HEALTH_POTION_ITEM_KEY)?.quantity ?? 0;
+  const tonicCount = inventory
+    .filter((r) => r.item.key === HEALTH_POTION_ITEM_KEY)
+    .reduce((sum, row) => sum + row.quantity, 0);
   const canUseTonic = !combatLocked && tonicCount > 0 && character.hp < character.maxHp;
   const portrait = portraitForClass(character.class, character.portraitKey);
 
@@ -229,7 +231,7 @@ export function AdventureLoadoutPanel({
                     ) : null}
                   </div>
                   <form action={equipItemAction}>
-                    <input type="hidden" name="itemId" value={entry.item.id} />
+                    <input type="hidden" name="inventoryEntryId" value={entry.id} />
                     <button
                       type="submit"
                       disabled={!canEquip}

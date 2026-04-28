@@ -23,7 +23,8 @@ import { rarityNameClass } from "@/lib/game/item-rarity-styles";
 import { buildCharacterStats } from "@/lib/game/stats";
 import { ItemHoverCard } from "@/components/item-hover-card";
 import { WorldChatPanel } from "@/components/world-chat-panel";
-import { updateCharacterPortraitAction } from "@/app/actions/character";
+import { updateCharacterBioAction, updateCharacterPortraitAction } from "@/app/actions/character";
+import { CharacterBioEditor } from "@/components/character-bio-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export default async function CharacterPage() {
       </div>
       <main className="relative z-10 w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
         <div className="mx-auto w-full max-w-5xl">
-          <GameTopBar characterName={character.name} characterClass={character.class} />
+          <GameTopBar characterName={character.name} characterLevel={character.level} />
           <GameNav
             inTownRegion={inTownRegion}
             combatLocked={combatLocked}
@@ -102,8 +103,8 @@ export default async function CharacterPage() {
           </div>
           <div className="min-w-0 space-y-6">
             <section className="grid gap-4 lg:grid-cols-[minmax(260px,320px)_1fr]">
-          <article className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4 shadow-md">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Sheet</h2>
+          <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Sheet</h2>
             <div className="mt-3">
               <CharacterPortraitPicker
                 characterClass={character.class}
@@ -133,8 +134,8 @@ export default async function CharacterPage() {
               <p className="text-xs text-zinc-500">
                 Lifesteal {(effective.lifeSteal * 100).toFixed(1)}% · Skill power +{(effective.skillPowerBonus * 100).toFixed(1)}%
               </p>
-              <p className="text-amber-200/90">Gold {character.gold}</p>
-              <p className="pt-1 text-violet-200/90">Unspent stat points: {character.statPoints}</p>
+              <p className="text-zinc-100">Gold {character.gold}</p>
+              <p className="pt-1 text-zinc-300">Unspent stat points: {character.statPoints}</p>
             </div>
             <div className="mt-4 space-y-2 border-t border-zinc-900 pt-3">
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Core attributes</p>
@@ -155,7 +156,7 @@ export default async function CharacterPage() {
                     <button
                       type="submit"
                       disabled={!canAllocate}
-                      className="h-7 w-7 rounded border border-amber-800/70 bg-amber-950/50 text-sm font-bold text-amber-200 hover:bg-amber-900/40 disabled:cursor-not-allowed disabled:opacity-35"
+                      className="h-7 w-7 rounded-lg border border-white/25 bg-black/55 text-sm font-bold text-zinc-100 hover:border-white/45 hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-35"
                       title={canAllocate ? `Add 1 ${row.label}` : "No stat points"}
                     >
                       +
@@ -166,9 +167,9 @@ export default async function CharacterPage() {
             </div>
           </article>
           <div className="space-y-4">
-          <article className="rounded-xl border border-amber-900/35 bg-amber-950/10 p-4 shadow-md">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-amber-600/80">Class skill</h2>
-            <p className="mt-2 text-lg font-semibold text-amber-100">
+          <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Class skill</h2>
+            <p className="mt-2 text-lg font-semibold text-zinc-100">
               <span className="mr-2">{classSkill.emoji}</span>
               {classSkill.name}
               <span className="ml-2 text-sm font-normal text-zinc-500">({classSkill.cooldown}-turn cooldown, no mana)</span>
@@ -176,8 +177,18 @@ export default async function CharacterPage() {
             <p className="mt-2 text-sm leading-relaxed text-zinc-400">{classSkill.description}</p>
             <p className="mt-3 text-xs text-zinc-600">Use the Skill button in turn-based combat when your cooldown is clear.</p>
           </article>
-          <article className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4 shadow-md">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Equipment</h2>
+          <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Public profile bio</h2>
+            <p className="mt-2 text-xs text-zinc-500">Always visible to everyone on your public profile.</p>
+            <div className="mt-3">
+              <CharacterBioEditor
+                initialBio={character.bio}
+                updateBioAction={updateCharacterBioAction}
+              />
+            </div>
+          </article>
+          <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Equipment</h2>
             <ul className="mt-3 space-y-2 text-sm text-zinc-300">
               {equipment.map((entry) => (
                 <li key={entry.id} className="flex justify-between gap-2 border-b border-zinc-900/80 py-1.5 last:border-0">
@@ -203,14 +214,14 @@ export default async function CharacterPage() {
                         </ItemHoverCard>
                         <span className="ml-2 text-xs text-zinc-500">{gearStatSummary(entry.item, entry.slot, entry.forgeLevel)}</span>
                         {formatItemStatRequirements(entry.item) ? (
-                          <span className="mt-0.5 block text-[11px] text-amber-600/90">Req: {formatItemStatRequirements(entry.item)}</span>
+                          <span className="mt-0.5 block text-[11px] text-zinc-500">Req: {formatItemStatRequirements(entry.item)}</span>
                         ) : null}
                         {!combatLocked ? (
                           <form action={unequipSlotAction} className="mt-1 inline-block">
                             <input type="hidden" name="slot" value={entry.slot} />
                             <button
                               type="submit"
-                              className="text-[11px] font-semibold text-zinc-500 underline decoration-zinc-700 hover:text-amber-200/90"
+                              className="text-[11px] font-semibold text-zinc-500 underline decoration-zinc-600 hover:text-zinc-200"
                             >
                               Unequip
                             </button>
@@ -228,8 +239,8 @@ export default async function CharacterPage() {
           </div>
             </section>
 
-            <article className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4 shadow-md">
-          <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Pack</h2>
+            <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
+          <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Pack</h2>
           <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
             {inventory.length ? (
               inventory.map((entry) => {
@@ -254,7 +265,7 @@ export default async function CharacterPage() {
                       }
                     : null;
                 return (
-                <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-900 bg-black/30 px-3 py-2 text-sm">
+                <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/15 bg-black/50 px-3 py-2 text-sm">
                   <span>
                     <ItemHoverCard
                       item={entry.item}
@@ -280,12 +291,12 @@ export default async function CharacterPage() {
                       </span>
                     ) : null}
                     {entry.item.slot !== "CONSUMABLE" && formatItemStatRequirements(entry.item) ? (
-                      <span className="mt-0.5 block text-[11px] text-amber-600/90">Req: {formatItemStatRequirements(entry.item)}</span>
+                      <span className="mt-0.5 block text-[11px] text-zinc-500">Req: {formatItemStatRequirements(entry.item)}</span>
                     ) : null}
                   </span>
                   {entry.item.slot !== "CONSUMABLE" ? (
                     <form action={equipItemAction}>
-                      <input type="hidden" name="itemId" value={entry.item.id} />
+                      <input type="hidden" name="inventoryEntryId" value={entry.id} />
                       <button
                         type="submit"
                         disabled={!canEquip || combatLocked}
@@ -298,7 +309,7 @@ export default async function CharacterPage() {
                                 : "Stats too low for this piece"
                               : "Equip"
                         }
-                        className="rounded border border-emerald-900/60 bg-emerald-950/40 px-2 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-900/30 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="rounded-lg border border-white/20 bg-black/55 px-2 py-1 text-xs font-semibold text-zinc-100 hover:border-white/35 hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Equip
                       </button>
@@ -315,8 +326,8 @@ export default async function CharacterPage() {
           </div>
             </article>
 
-            <article className="rounded-xl border border-violet-900/30 bg-violet-950/10 p-4">
-          <h2 className="text-[10px] font-bold uppercase tracking-widest text-violet-400/80">Solo dungeon</h2>
+            <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
+          <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Solo dungeon</h2>
           {dungeon ? (
             <p className="mt-2 text-sm text-zinc-400">
               {dungeon.name} — {dungeon.description}{" "}

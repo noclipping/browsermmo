@@ -96,7 +96,7 @@ export default async function AdventurePage({
       ) : null}
       <main className="relative z-10 w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
         <div className="mx-auto w-full max-w-5xl">
-          <GameTopBar characterName={character.name} characterClass={character.class} />
+          <GameTopBar characterName={character.name} characterLevel={character.level} />
           <GameNav
             inTownRegion={inTownRegion}
             combatLocked={combatLocked}
@@ -127,9 +127,9 @@ export default async function AdventurePage({
             </div>
           </div>
           <div className="min-w-0 space-y-4">
-            <section className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4 shadow-md">
-              <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Region</h2>
-              <p className="mt-1 text-sm text-zinc-500">
+            <section className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
+              <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Region</h2>
+              <p className="mt-1 text-sm text-zinc-400">
                 Pick where you adventure - higher areas are deadlier. You cannot relocate during an active fight.
               </p>
               <div className="mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 snap-x snap-mandatory md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
@@ -158,7 +158,7 @@ export default async function AdventurePage({
                           className={`min-w-max snap-start rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                             character.regionId === region.id
                               ? "border-amber-600 bg-amber-950/50 text-amber-100"
-                              : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-600"
+                              : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
                           }`}
                         >
                           <span className="mr-1.5" aria-hidden="true">

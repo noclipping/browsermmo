@@ -630,7 +630,7 @@ export function TurnCombatArena({
 
   // When the server has an ACTIVE encounter, always mirror it if the client is not already in that fight.
   // The old `resumeAppliedRef` gate could stay true after `setEncounterId(null)` at roll start, so we never
-  // hydrated again (hub + amber "active fight" banner, no battle panel — common on mobile).
+  // hydrated again (hub + empty combat panel, no battle UI — common on mobile).
   useLayoutEffect(() => {
     if (!resumeCombat) return;
     if (!shouldHydrateResume) return;
@@ -721,10 +721,10 @@ export function TurnCombatArena({
   ]);
 
   return (
-    <div className="relative isolate rounded-2xl border-2 border-amber-900/50 bg-linear-to-b from-zinc-900 via-zinc-950 to-black p-1 shadow-[0_0_40px_rgba(0,0,0,0.6)]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(180,83,9,0.12),transparent_55%)]" />
+    <div className="relative isolate rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-1 shadow-md backdrop-blur-[1px]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.06),transparent_58%)]" />
       {combatTint ? <div className={`pointer-events-none absolute inset-0 z-10 animate-combat-tint ${`combat-tint-${combatTint}`}`} /> : null}
-      <div className="relative z-1 rounded-xl border border-zinc-800/80 bg-zinc-950/80 p-5 md:p-6">
+      <div className="relative z-1 rounded-xl border border-white/15 bg-black/30 p-5 backdrop-blur-[1px] md:p-6">
         {showDebugOverlay ? (
           <div
             className="mb-4 max-h-[min(38vh,18rem)] overflow-auto rounded-lg border-2 border-emerald-500 bg-emerald-950/50 p-3 font-mono text-[11px] leading-snug text-emerald-50 shadow-md"
@@ -745,13 +745,23 @@ export function TurnCombatArena({
           </div>
         ) : null}
 
-        <header className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-amber-900/30 pb-3">
+        <header className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-white/15 pb-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600/90">Adventure</p>
-            <h2 className="font-serif text-xl font-semibold text-amber-100 md:text-2xl">{regionName}</h2>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Adventure</p>
+            <h2 className="font-serif text-xl font-semibold text-zinc-100 md:text-2xl">{regionName}</h2>
             <p className="mt-0.5 text-xs text-zinc-500">
               {characterName}
-              <span className={`ml-2 rounded border px-1.5 py-0.5 text-[10px] ${hydrated ? "border-emerald-700/70 text-emerald-300" : "border-amber-700/70 text-amber-300"}`}>
+              <span
+                className={`ml-2 rounded border px-1.5 py-0.5 text-[10px] ${
+                  phase === "hub"
+                    ? hydrated
+                      ? "border-white/25 text-zinc-300"
+                      : "border-white/15 text-zinc-500"
+                    : hydrated
+                      ? "border-emerald-700/70 text-emerald-300"
+                      : "border-amber-700/70 text-amber-300"
+                }`}
+              >
                 client:{hydrated ? "hydrated" : "ssr-only"}
               </span>
             </p>
@@ -764,7 +774,7 @@ export function TurnCombatArena({
           ) : null}
         </header>
 
-        <div className="mb-4 rounded-lg border border-zinc-800/80 bg-zinc-900/35 px-3 py-2.5">
+        <div className="mb-4 rounded-lg border border-white/20 bg-black/45 px-3 py-2.5 backdrop-blur-sm">
           <label htmlFor={autoAdventureFieldId} className="flex cursor-pointer items-start gap-2.5 text-xs text-zinc-300">
             <input
               id={autoAdventureFieldId}
@@ -774,17 +784,22 @@ export function TurnCombatArena({
               className="peer sr-only"
             />
             <span
-              className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-zinc-500/85 bg-zinc-600/75 shadow-inner transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-amber-500/35 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-zinc-950 peer-checked:border-amber-500/90 peer-checked:bg-amber-600 peer-checked:shadow-none peer-checked:[&_svg]:opacity-100"
+              className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-zinc-500/85 bg-zinc-600/75 shadow-inner transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-white/25 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-zinc-950 peer-checked:border-white peer-checked:bg-zinc-100 peer-checked:shadow-none peer-checked:[&_svg]:opacity-100"
               aria-hidden
             >
-              <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 text-amber-50 opacity-0 transition-opacity duration-150" fill="none" aria-hidden>
+              <svg
+                viewBox="0 0 12 12"
+                className="h-2.5 w-2.5 text-zinc-900 opacity-0 transition-opacity duration-150"
+                fill="none"
+                aria-hidden
+              >
                 <path d="M2.5 6L5 8.5l4.5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </span>
             <span className="min-w-0 flex-1 leading-snug">
               <span className="font-medium text-zinc-200">Auto adventure</span>
               {autoAdventureEnabled ? (
-                <span className="ml-1.5 text-[10px] uppercase tracking-wider text-amber-300">
+                <span className="ml-1.5 text-[10px] uppercase tracking-wider text-zinc-400">
                   {autoAdventureRunning ? "running" : "armed"}
                 </span>
               ) : null}
@@ -803,8 +818,8 @@ export function TurnCombatArena({
               Each outing is a surprise: loose coin, a tonic in the brush, or a fight. In combat, enemy intent is telegraphed — strike, brace, or sip.
             </p>
             {pendingEvent ? (
-              <div className="mx-auto max-w-xl rounded-xl border border-zinc-700/55 bg-zinc-900/50 px-4 py-5 text-center shadow-inner sm:px-6">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500/90">{pendingEvent.title}</p>
+              <div className="mx-auto max-w-xl rounded-xl border border-white/15 bg-black/40 px-4 py-5 text-center shadow-inner backdrop-blur-sm sm:px-6">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-white/70">{pendingEvent.title}</p>
                 <p className="mt-2 text-sm leading-relaxed text-zinc-300">{pendingEvent.prompt}</p>
                 <div className="mt-5 flex flex-col items-stretch gap-2.5 sm:flex-row sm:justify-center sm:gap-3">
                   <form ref={safeEventFormRef} action={eventChoiceFormAction} className="min-w-0 sm:flex-1 sm:max-w-56">
@@ -833,7 +848,7 @@ export function TurnCombatArena({
               </div>
             ) : null}
             {hubLines?.length ? (
-              <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 px-4 py-3 font-serif text-sm leading-relaxed text-emerald-100/90">
+              <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 px-4 py-3 font-serif text-sm leading-relaxed text-emerald-100/90 backdrop-blur-sm">
                 {hubLines.map((line, i) => (
                   <p key={i} className={i > 0 ? "mt-2" : ""}>
                     {line}
@@ -842,7 +857,7 @@ export function TurnCombatArena({
               </div>
             ) : null}
             {busy ? (
-              <div className="rounded-lg border border-amber-800/50 bg-black/35 px-4 py-3">
+              <div className="rounded-lg border border-white/15 bg-black/40 px-4 py-3 backdrop-blur-sm">
                 <p className="text-sm font-semibold text-amber-200">{ADVENTURE_STATUS_LINES[adventureStatusIndex]}</p>
                 <div className="mt-2 h-2.5 overflow-hidden rounded-full border border-amber-900/60 bg-amber-950/35">
                   <div className="adventure-progress h-full w-2/5 rounded-full bg-linear-to-r from-amber-500 via-yellow-300 to-amber-500" />
@@ -865,7 +880,7 @@ export function TurnCombatArena({
                 <button
                   type="submit"
                   aria-busy={busy || isRollPending}
-                  className={`w-full touch-manipulation rounded-xl border-2 border-amber-600/70 bg-linear-to-b from-amber-900/50 to-amber-950/80 py-4 text-center text-base font-bold uppercase tracking-[0.15em] text-amber-100 shadow-lg hover:from-amber-800/50 hover:to-amber-900/70 active:bg-amber-950/90 sm:py-5 sm:text-lg ${busy || isRollPending ? "cursor-wait opacity-55" : "cursor-pointer opacity-100"}`}
+                  className={`w-full touch-manipulation rounded-xl border-2 border-white/35 bg-linear-to-b from-zinc-900/95 to-black py-4 text-center text-base font-bold uppercase tracking-[0.15em] text-zinc-100 shadow-lg hover:border-white/50 hover:from-zinc-800 hover:to-zinc-950 active:bg-black sm:py-5 sm:text-lg ${busy || isRollPending ? "cursor-wait opacity-55" : "cursor-pointer opacity-100"}`}
                 >
                   {busy || isRollPending ? "Rolling encounter…" : "Adventure"}
                 </button>

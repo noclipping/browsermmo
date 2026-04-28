@@ -48,6 +48,14 @@ enum Rarity {
   GODLY
 }
 
+/** Directed friend request / friendship edge (async-only; no realtime). */
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
 model User {
   id           String      @id @default(cuid())
   username     String      @unique
@@ -57,6 +65,23 @@ model User {
   lastSeenAt   DateTime?
   sessions     Session[]
   characters   Character[]
+  friendshipsRequested Friendship[] @relation("FriendshipRequester")
+  friendshipsReceived  Friendship[] @relation("FriendshipAddressee")
+}
+
+model Friendship {
+  id          String            @id @default(cuid())
+  requesterId String
+  requester   User              @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId String
+  addressee   User              @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      FriendshipStatus  @default(PENDING)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@index([requesterId, status])
 }
 
 model Session {
@@ -72,6 +97,7 @@ model Character {
   id             String               @id @default(cuid())
   name           String
   portraitKey    String?
+  bio            String               @default("")
   userId         String
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   class          CharacterClass
@@ -242,7 +268,8 @@ model InventoryItem {
   bonusDexterity Int    @default(0)
   createdAt   DateTime  @default(now())
 
-  @@unique([characterId, itemId])
+  @@unique([characterId, itemId, forgeLevel, affixPrefix, bonusLifeSteal, bonusCritChance, bonusSkillPower, bonusStrength, bonusConstitution, bonusIntelligence, bonusDexterity])
+  @@index([characterId, itemId])
 }
 
 model CharacterEquipment {

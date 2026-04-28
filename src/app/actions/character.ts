@@ -1,6 +1,7 @@
 "use server";
 
 import { CharacterClass } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/guards";
@@ -96,6 +97,10 @@ const updatePortraitSchema = z.object({
   portrait: z.string().min(1),
 });
 
+const updateBioSchema = z.object({
+  bio: z.string().max(180),
+});
+
 export async function updateCharacterPortraitAction(
   _state: string | null,
   formData: FormData,
@@ -120,5 +125,29 @@ export async function updateCharacterPortraitAction(
     where: { id: character.id },
     data: { portraitKey: parsed.data.portrait },
   });
+  return null;
+}
+
+export async function updateCharacterBioAction(formData: FormData) {
+  const user = await requireUser();
+  const character = await prisma.character.findFirst({
+    where: { userId: user.id },
+    select: { id: true, name: true },
+  });
+  if (!character) return "No character found.";
+
+  const parsed = updateBioSchema.safeParse({
+    bio: String(formData.get("bio") ?? "").trim(),
+  });
+  if (!parsed.success) return "Bio is too long (max 180 characters).";
+
+  await prisma.character.update({
+    where: { id: character.id },
+    data: { bio: parsed.data.bio },
+  });
+
+  revalidatePath("/character");
+  revalidatePath("/players");
+  revalidatePath(`/player/${encodeURIComponent(character.name)}`);
   return null;
 }

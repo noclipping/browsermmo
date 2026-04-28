@@ -29,6 +29,7 @@ import {
   type ShopGearClientRow,
 } from "@/lib/game/shop";
 import { ItemHoverCard } from "@/components/item-hover-card";
+import { ShopGoldFxRoot, ShopTransactionForm } from "@/components/shop-gold-fx";
 import { ShopGearList } from "@/components/shop-gear-list";
 import { GameNav } from "@/components/game-nav";
 import { GameTopBar } from "@/components/game-top-bar";
@@ -94,7 +95,9 @@ export default async function ShopPage() {
     include: { item: true },
     orderBy: { createdAt: "desc" },
   });
-  const tonicCount = inventory.find((e) => e.item.key === HEALTH_POTION_ITEM_KEY)?.quantity ?? 0;
+  const tonicCount = inventory
+    .filter((e) => e.item.key === HEALTH_POTION_ITEM_KEY)
+    .reduce((sum, row) => sum + row.quantity, 0);
   const tonicFull = tonicCount >= MAX_POTIONS_IN_PACK;
 
   const equippedItemIds = new Set(equipment.map((e) => e.itemId).filter((id): id is string => !!id));
@@ -163,7 +166,7 @@ export default async function ShopPage() {
       </div>
       <main className="relative z-10 w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
         <div className="mx-auto w-full max-w-5xl">
-          <GameTopBar characterName={character.name} characterClass={character.class} />
+          <GameTopBar characterName={character.name} characterLevel={character.level} />
           <GameNav
             inTownRegion={inTownRegion}
             combatLocked={false}
@@ -184,7 +187,8 @@ export default async function ShopPage() {
               />
             </div>
           </div>
-          <div className="min-w-0 space-y-6">
+          <ShopGoldFxRoot>
+            <div className="min-w-0 space-y-6">
             <section className={marketPanelClass}>
               <h2 className={marketTitleClass}>Front counter</h2>
               <p className={marketSubtleTextClass}>
@@ -205,7 +209,7 @@ export default async function ShopPage() {
                   <p className="mt-1 text-xs text-zinc-200">
                     Fast out-of-combat heal. Carry cap: {MAX_POTIONS_IN_PACK}.
                   </p>
-                  <form action={buyPotionAction} className="mt-3">
+                  <ShopTransactionForm transactionAction={buyPotionAction} className="mt-3">
                     <button
                       type="submit"
                       disabled={character.gold < tonicPrice || tonicFull}
@@ -214,12 +218,12 @@ export default async function ShopPage() {
                     >
                       Buy tonic — {tonicPrice}g ({tonicCount}/{MAX_POTIONS_IN_PACK})
                     </button>
-                  </form>
+                  </ShopTransactionForm>
                 </div>
                 <div className="rounded-lg border border-white/20 bg-black/50 p-3">
                   <p className={marketTitleClass}>🪨 Smithing stone</p>
                   <p className="mt-1 text-xs text-zinc-200">Used at the forge to reinforce equipped gear tiers.</p>
-                  <form action={buySmithingStoneAction} className="mt-3">
+                  <ShopTransactionForm transactionAction={buySmithingStoneAction} className="mt-3">
                     <button
                       type="submit"
                       disabled={character.gold < stonePrice}
@@ -227,7 +231,7 @@ export default async function ShopPage() {
                     >
                       Buy smithing stone — {stonePrice}g
                     </button>
-                  </form>
+                  </ShopTransactionForm>
                 </div>
               </div>
             </section>
@@ -294,20 +298,20 @@ export default async function ShopPage() {
                             <span className="ml-2 font-mono text-xs text-zinc-100/90">{entry.item.sellPrice}g each</span>
                           </span>
                           <div className="flex items-center gap-2">
-                            <form action={sellItemAction}>
-                              <input type="hidden" name="itemId" value={entry.item.id} />
+                            <ShopTransactionForm transactionAction={sellItemAction}>
+                              <input type="hidden" name="inventoryEntryId" value={entry.id} />
                               <input type="hidden" name="amount" value="ONE" />
                               <button type="submit" className={marketButtonClass}>
                                 Sell x1
                               </button>
-                            </form>
-                            <form action={sellItemAction}>
-                              <input type="hidden" name="itemId" value={entry.item.id} />
+                            </ShopTransactionForm>
+                            <ShopTransactionForm transactionAction={sellItemAction}>
+                              <input type="hidden" name="inventoryEntryId" value={entry.id} />
                               <input type="hidden" name="amount" value="ALL" />
                               <button type="submit" className={marketButtonClass}>
                                 Sell all
                               </button>
-                            </form>
+                            </ShopTransactionForm>
                           </div>
                         </div>
                       );
@@ -318,7 +322,8 @@ export default async function ShopPage() {
                 </div>
               </article>
             </section>
-          </div>
+            </div>
+          </ShopGoldFxRoot>
           <div className="hidden min-w-0 lg:block">
             <div className="lg:sticky lg:top-4 lg:mr-auto lg:w-[min(22rem,100%)]">
               <WorldChatPanel />

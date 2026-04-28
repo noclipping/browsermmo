@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
-/** Put one or more forged gear units back into the pack (merge by itemId, keep higher forge tier). */
+/** Put one or more forged gear units back into the pack (merge only identical rolled stacks). */
 export async function returnGearToInventoryTx(
   tx: Prisma.TransactionClient,
   params: {
@@ -19,8 +19,29 @@ export async function returnGearToInventoryTx(
   },
 ): Promise<void> {
   const qty = params.quantity ?? 1;
-  const row = await tx.inventoryItem.findUnique({
-    where: { characterId_itemId: { characterId: params.characterId, itemId: params.itemId } },
+  const affixPrefix = params.affixPrefix ?? null;
+  const bonusLifeSteal = params.bonusLifeSteal ?? 0;
+  const bonusCritChance = params.bonusCritChance ?? 0;
+  const bonusSkillPower = params.bonusSkillPower ?? 0;
+  const bonusStrength = params.bonusStrength ?? 0;
+  const bonusConstitution = params.bonusConstitution ?? 0;
+  const bonusIntelligence = params.bonusIntelligence ?? 0;
+  const bonusDexterity = params.bonusDexterity ?? 0;
+
+  const row = await tx.inventoryItem.findFirst({
+    where: {
+      characterId: params.characterId,
+      itemId: params.itemId,
+      forgeLevel: params.forgeLevel,
+      affixPrefix,
+      bonusLifeSteal,
+      bonusCritChance,
+      bonusSkillPower,
+      bonusStrength,
+      bonusConstitution,
+      bonusIntelligence,
+      bonusDexterity,
+    },
   });
   if (!row) {
     await tx.inventoryItem.create({
@@ -29,14 +50,14 @@ export async function returnGearToInventoryTx(
         itemId: params.itemId,
         quantity: qty,
         forgeLevel: params.forgeLevel,
-        affixPrefix: params.affixPrefix ?? null,
-        bonusLifeSteal: params.bonusLifeSteal ?? 0,
-        bonusCritChance: params.bonusCritChance ?? 0,
-        bonusSkillPower: params.bonusSkillPower ?? 0,
-        bonusStrength: params.bonusStrength ?? 0,
-        bonusConstitution: params.bonusConstitution ?? 0,
-        bonusIntelligence: params.bonusIntelligence ?? 0,
-        bonusDexterity: params.bonusDexterity ?? 0,
+        affixPrefix,
+        bonusLifeSteal,
+        bonusCritChance,
+        bonusSkillPower,
+        bonusStrength,
+        bonusConstitution,
+        bonusIntelligence,
+        bonusDexterity,
       },
     });
     return;
@@ -45,15 +66,6 @@ export async function returnGearToInventoryTx(
     where: { id: row.id },
     data: {
       quantity: { increment: qty },
-      forgeLevel: Math.max(row.forgeLevel, params.forgeLevel),
-      affixPrefix: row.affixPrefix ?? params.affixPrefix ?? null,
-      bonusLifeSteal: Math.max(row.bonusLifeSteal, params.bonusLifeSteal ?? 0),
-      bonusCritChance: Math.max(row.bonusCritChance, params.bonusCritChance ?? 0),
-      bonusSkillPower: Math.max(row.bonusSkillPower, params.bonusSkillPower ?? 0),
-      bonusStrength: Math.max(row.bonusStrength, params.bonusStrength ?? 0),
-      bonusConstitution: Math.max(row.bonusConstitution, params.bonusConstitution ?? 0),
-      bonusIntelligence: Math.max(row.bonusIntelligence, params.bonusIntelligence ?? 0),
-      bonusDexterity: Math.max(row.bonusDexterity, params.bonusDexterity ?? 0),
     },
   });
 }

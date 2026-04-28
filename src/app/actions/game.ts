@@ -27,6 +27,7 @@ import {
   shopPotionBuyPrice,
   shopStoneBuyPrice,
 } from "@/lib/game/shop";
+import type { ShopTransactionResult } from "@/lib/game/shop-transaction";
 import { potionHealAmount } from "@/lib/game/combat-turn";
 import {
   executeAdventureStart,
@@ -252,45 +253,47 @@ export async function fleeCombatAction(
 const buyShopEquipmentSchema = z.object({ itemId: z.string().min(1) });
 
 /** Town market: buy one COMMON equipment piece; stock and prices follow recommended zone tier and item power. */
-export async function buyShopEquipmentAction(formData: FormData) {
+export async function buyShopEquipmentAction(formData: FormData): Promise<ShopTransactionResult> {
   const user = await requireUser();
   const character = await requireCharacter(user.id);
   const town = await prisma.region.findUnique({ where: { key: "town_outskirts" } });
-  if (!town || character.regionId !== town.id) return;
-  if (!(await assertNoActiveCombat(character.id))) return;
+  if (!town || character.regionId !== town.id) return { ok: false };
+  if (!(await assertNoActiveCombat(character.id))) return { ok: false };
 
   const parsed = buyShopEquipmentSchema.safeParse({ itemId: formData.get("itemId") });
-  if (!parsed.success) return;
+  if (!parsed.success) return { ok: false };
 
   const regions = await prisma.region.findMany({ orderBy: { minLevel: "asc" } });
   const tier = recommendedShopTier(character.level, regions);
 
   const item = await prisma.item.findUnique({ where: { id: parsed.data.itemId } });
-  if (!item || item.rarity !== "COMMON" || item.slot === "CONSUMABLE") return;
+  if (!item || item.rarity !== "COMMON" || item.slot === "CONSUMABLE") return { ok: false };
   const itemTier = shopEquipmentTierFromKey(item.key);
-  if (itemTier == null || itemTier !== tier) return;
-  if (!characterMeetsItemLevelAndStats(character, item)) return;
+  if (itemTier == null || itemTier !== tier) return { ok: false };
+  if (!characterMeetsItemLevelAndStats(character, item)) return { ok: false };
 
   const price = shopBuyPriceForItem(item);
-  if (character.gold < price) return;
+  if (character.gold < price) return { ok: false };
 
   await prisma.$transaction(async (tx) => {
     await tx.character.update({
       where: { id: character.id },
       data: { gold: { decrement: price } },
     });
-    await tx.inventoryItem.upsert({
-      where: { characterId_itemId: { characterId: character.id, itemId: item.id } },
-      update: { quantity: { increment: 1 } },
-      create: { characterId: character.id, itemId: item.id, quantity: 1, forgeLevel: 0 },
+    await addItemQuantityCapped(tx, {
+      characterId: character.id,
+      itemId: item.id,
+      itemKey: item.key,
+      delta: 1,
     });
   });
 
   revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
+  return { ok: true, delta: -price };
 }
 
-const equipSchema = z.object({ itemId: z.string().min(1) });
+const equipSchema = z.object({ inventoryEntryId: z.string().min(1) });
 
 async function assertNoActiveCombat(characterId: string) {
   const active = await prisma.soloCombatEncounter.findFirst({
@@ -303,12 +306,12 @@ async function assertNoActiveCombat(characterId: string) {
 export async function equipItemAction(formData: FormData) {
   const user = await requireUser();
   const character = await requireCharacter(user.id);
-  const parsed = equipSchema.safeParse({ itemId: formData.get("itemId") });
+  const parsed = equipSchema.safeParse({ inventoryEntryId: formData.get("inventoryEntryId") });
   if (!parsed.success) return;
   if (!(await assertNoActiveCombat(character.id))) return;
 
-  const inventoryItem = await prisma.inventoryItem.findUnique({
-    where: { characterId_itemId: { characterId: character.id, itemId: parsed.data.itemId } },
+  const inventoryItem = await prisma.inventoryItem.findFirst({
+    where: { id: parsed.data.inventoryEntryId, characterId: character.id },
     include: { item: true },
   });
   if (!inventoryItem) return;
@@ -324,10 +327,10 @@ export async function equipItemAction(formData: FormData) {
 
   await prisma.$transaction(async (tx) => {
     const invItem = await tx.inventoryItem.findUnique({
-      where: { characterId_itemId: { characterId: character.id, itemId: parsed.data.itemId } },
+      where: { id: parsed.data.inventoryEntryId },
       include: { item: true },
     });
-    if (!invItem || invItem.item.slot === "CONSUMABLE") return;
+    if (!invItem || invItem.characterId !== character.id || invItem.item.slot === "CONSUMABLE") return;
 
     const slotRow = await tx.characterEquipment.findUnique({
       where: { characterId_slot: { characterId: character.id, slot: invItem.item.slot as ItemSlot } },
@@ -434,32 +437,32 @@ export async function unequipSlotAction(formData: FormData) {
 }
 
 const sellSchema = z.object({
-  itemId: z.string().min(1),
+  inventoryEntryId: z.string().min(1),
   amount: z.enum(["ONE", "ALL"]).optional(),
 });
 
 /** Town shop: sell one or the full stack for sellPrice gold each. Blocked if equipped or in combat. */
-export async function sellItemAction(formData: FormData) {
+export async function sellItemAction(formData: FormData): Promise<ShopTransactionResult> {
   const user = await requireUser();
   const character = await requireCharacter(user.id);
   const town = await prisma.region.findUnique({ where: { key: "town_outskirts" } });
-  if (!town || character.regionId !== town.id) return;
-  if (!(await assertNoActiveCombat(character.id))) return;
+  if (!town || character.regionId !== town.id) return { ok: false };
+  if (!(await assertNoActiveCombat(character.id))) return { ok: false };
 
-  const parsed = sellSchema.safeParse({ itemId: formData.get("itemId"), amount: formData.get("amount") });
-  if (!parsed.success) return;
+  const parsed = sellSchema.safeParse({ inventoryEntryId: formData.get("inventoryEntryId"), amount: formData.get("amount") });
+  if (!parsed.success) return { ok: false };
 
-  const inv = await prisma.inventoryItem.findUnique({
-    where: { characterId_itemId: { characterId: character.id, itemId: parsed.data.itemId } },
+  const inv = await prisma.inventoryItem.findFirst({
+    where: { id: parsed.data.inventoryEntryId, characterId: character.id },
     include: { item: true },
   });
-  if (!inv || inv.quantity < 1) return;
-  if (inv.item.sellPrice < 1) return;
+  if (!inv || inv.quantity < 1) return { ok: false };
+  if (inv.item.sellPrice < 1) return { ok: false };
 
   const worn = await prisma.characterEquipment.findFirst({
-    where: { characterId: character.id, itemId: parsed.data.itemId },
+    where: { characterId: character.id, itemId: inv.itemId },
   });
-  if (worn) return;
+  if (worn) return { ok: false };
 
   const sellAll = parsed.data.amount === "ALL";
   const sellQty = sellAll ? inv.quantity : 1;
@@ -479,29 +482,42 @@ export async function sellItemAction(formData: FormData) {
 
   revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
+  return { ok: true, delta: goldGain };
 }
 
 /** Town-only: buy one health potion for gold (placeholder shop). */
-export async function buyPotionAction() {
+export async function buyPotionAction(_formData?: FormData): Promise<ShopTransactionResult> {
   const user = await requireUser();
   const character = await requireCharacter(user.id);
   const town = await prisma.region.findUnique({ where: { key: "town_outskirts" } });
-  if (!town || character.regionId !== town.id) return;
-  if (!(await assertNoActiveCombat(character.id))) return;
+  if (!town || character.regionId !== town.id) return { ok: false };
+  if (!(await assertNoActiveCombat(character.id))) return { ok: false };
 
   const regions = await prisma.region.findMany({ orderBy: { minLevel: "asc" } });
   const tier = recommendedShopTier(character.level, regions);
   const price = shopPotionBuyPrice(tier);
 
-  if (character.gold < price) return;
+  if (character.gold < price) return { ok: false };
 
   const potion = await prisma.item.findUnique({ where: { key: HEALTH_POTION_ITEM_KEY } });
-  if (!potion) return;
+  if (!potion) return { ok: false };
 
-  const existingPotions = await prisma.inventoryItem.findUnique({
-    where: { characterId_itemId: { characterId: character.id, itemId: potion.id } },
+  const existingPotions = await prisma.inventoryItem.findFirst({
+    where: {
+      characterId: character.id,
+      itemId: potion.id,
+      forgeLevel: 0,
+      affixPrefix: null,
+      bonusLifeSteal: 0,
+      bonusCritChance: 0,
+      bonusSkillPower: 0,
+      bonusStrength: 0,
+      bonusConstitution: 0,
+      bonusIntelligence: 0,
+      bonusDexterity: 0,
+    },
   });
-  if ((existingPotions?.quantity ?? 0) >= MAX_POTIONS_IN_PACK) return;
+  if ((existingPotions?.quantity ?? 0) >= MAX_POTIONS_IN_PACK) return { ok: false };
 
   await prisma.$transaction(async (tx) => {
     await tx.character.update({
@@ -518,6 +534,7 @@ export async function buyPotionAction() {
 
   revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
+  return { ok: true, delta: -price };
 }
 
 /** Out-of-combat: consume one tonic from pack to heal immediately. */
@@ -529,8 +546,20 @@ export async function consumeTonicOutsideCombatAction() {
 
   const potion = await prisma.item.findUnique({ where: { key: HEALTH_POTION_ITEM_KEY } });
   if (!potion) return;
-  const inv = await prisma.inventoryItem.findUnique({
-    where: { characterId_itemId: { characterId: character.id, itemId: potion.id } },
+  const inv = await prisma.inventoryItem.findFirst({
+    where: {
+      characterId: character.id,
+      itemId: potion.id,
+      forgeLevel: 0,
+      affixPrefix: null,
+      bonusLifeSteal: 0,
+      bonusCritChance: 0,
+      bonusSkillPower: 0,
+      bonusStrength: 0,
+      bonusConstitution: 0,
+      bonusIntelligence: 0,
+      bonusDexterity: 0,
+    },
   });
   if (!inv || inv.quantity < 1) return;
 
@@ -555,36 +584,39 @@ export async function consumeTonicOutsideCombatAction() {
 }
 
 /** Town-only: buy one smithing stone for premium gold cost. */
-export async function buySmithingStoneAction() {
+export async function buySmithingStoneAction(_formData?: FormData): Promise<ShopTransactionResult> {
   const user = await requireUser();
   const character = await requireCharacter(user.id);
   const town = await prisma.region.findUnique({ where: { key: "town_outskirts" } });
-  if (!town || character.regionId !== town.id) return;
-  if (!(await assertNoActiveCombat(character.id))) return;
+  if (!town || character.regionId !== town.id) return { ok: false };
+  if (!(await assertNoActiveCombat(character.id))) return { ok: false };
 
   const regions = await prisma.region.findMany({ orderBy: { minLevel: "asc" } });
   const tier = recommendedShopTier(character.level, regions);
   const price = shopStoneBuyPrice(tier);
 
-  if (character.gold < price) return;
+  if (character.gold < price) return { ok: false };
 
   const stone = await prisma.item.findUnique({ where: { key: SMITHING_STONE_ITEM_KEY } });
-  if (!stone) return;
+  if (!stone) return { ok: false };
 
   await prisma.$transaction(async (tx) => {
     await tx.character.update({
       where: { id: character.id },
       data: { gold: { decrement: price } },
     });
-    await tx.inventoryItem.upsert({
-      where: { characterId_itemId: { characterId: character.id, itemId: stone.id } },
-      update: { quantity: { increment: 1 } },
-      create: { characterId: character.id, itemId: stone.id, quantity: 1, forgeLevel: 0 },
+    await addItemQuantityCapped(tx, {
+      characterId: character.id,
+      itemId: stone.id,
+      itemKey: stone.key,
+      delta: 1,
     });
   });
 
   revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
+  revalidatePath("/forge", "layout");
+  return { ok: true, delta: -price };
 }
 
 /** Town-only: free full heal at campfire, on a cooldown between uses. */
@@ -637,8 +669,20 @@ export async function forgeUpgradeAction(formData: FormData) {
       where: { characterId_slot: { characterId: character.id, slot: parsed.data.slot } },
       include: { item: true },
     }),
-    prisma.inventoryItem.findUnique({
-      where: { characterId_itemId: { characterId: character.id, itemId: stone.id } },
+    prisma.inventoryItem.findFirst({
+      where: {
+        characterId: character.id,
+        itemId: stone.id,
+        forgeLevel: 0,
+        affixPrefix: null,
+        bonusLifeSteal: 0,
+        bonusCritChance: 0,
+        bonusSkillPower: 0,
+        bonusStrength: 0,
+        bonusConstitution: 0,
+        bonusIntelligence: 0,
+        bonusDexterity: 0,
+      },
     }),
   ]);
   if (!equip?.item) return;
@@ -665,6 +709,7 @@ export async function forgeUpgradeAction(formData: FormData) {
   });
 
   revalidatePath("/town", "layout");
+  revalidatePath("/forge", "layout");
 }
 
 /** Debug: reset character to level 1, base class stats, town, starter gold, empty pack except 4 tonics, no gear, no active combat. */

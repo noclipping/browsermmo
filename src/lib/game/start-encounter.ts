@@ -170,8 +170,20 @@ export async function createSoloEncounter(
   const potionItem = await prisma.item.findUnique({ where: { key: HEALTH_POTION_ITEM_KEY } });
   let potionCount = 0;
   if (potionItem) {
-    const inv = await prisma.inventoryItem.findUnique({
-      where: { characterId_itemId: { characterId: params.character.id, itemId: potionItem.id } },
+    const inv = await prisma.inventoryItem.findFirst({
+      where: {
+        characterId: params.character.id,
+        itemId: potionItem.id,
+        forgeLevel: 0,
+        affixPrefix: null,
+        bonusLifeSteal: 0,
+        bonusCritChance: 0,
+        bonusSkillPower: 0,
+        bonusStrength: 0,
+        bonusConstitution: 0,
+        bonusIntelligence: 0,
+        bonusDexterity: 0,
+      },
     });
     potionCount = inv?.quantity ?? 0;
   }
@@ -206,8 +218,20 @@ export async function getResumeCombatPayload(
   const potionItem = await prisma.item.findUnique({ where: { key: HEALTH_POTION_ITEM_KEY } });
   let potionCount = 0;
   if (potionItem) {
-    const inv = await prisma.inventoryItem.findUnique({
-      where: { characterId_itemId: { characterId: character.id, itemId: potionItem.id } },
+    const inv = await prisma.inventoryItem.findFirst({
+      where: {
+        characterId: character.id,
+        itemId: potionItem.id,
+        forgeLevel: 0,
+        affixPrefix: null,
+        bonusLifeSteal: 0,
+        bonusCritChance: 0,
+        bonusSkillPower: 0,
+        bonusStrength: 0,
+        bonusConstitution: 0,
+        bonusIntelligence: 0,
+        bonusDexterity: 0,
+      },
     });
     potionCount = inv?.quantity ?? 0;
   }

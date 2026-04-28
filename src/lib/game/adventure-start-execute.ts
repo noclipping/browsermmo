@@ -139,8 +139,20 @@ export async function executeAdventureEventChoice(params: {
   if (params.kind === "POTION") {
     const potion = await prisma.item.findUnique({ where: { key: HEALTH_POTION_ITEM_KEY } });
     if (!potion) return { ok: false, error: "Potion item is not configured.", httpStatus: 500 };
-    const inv = await prisma.inventoryItem.findUnique({
-      where: { characterId_itemId: { characterId: params.character.id, itemId: potion.id } },
+    const inv = await prisma.inventoryItem.findFirst({
+      where: {
+        characterId: params.character.id,
+        itemId: potion.id,
+        forgeLevel: 0,
+        affixPrefix: null,
+        bonusLifeSteal: 0,
+        bonusCritChance: 0,
+        bonusSkillPower: 0,
+        bonusStrength: 0,
+        bonusConstitution: 0,
+        bonusIntelligence: 0,
+        bonusDexterity: 0,
+      },
     });
     const full = (inv?.quantity ?? 0) >= MAX_POTIONS_IN_PACK;
     if (Math.random() < 0.68) {

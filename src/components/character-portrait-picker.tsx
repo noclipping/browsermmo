@@ -43,7 +43,7 @@ export function CharacterPortraitPicker({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-lg border border-amber-900/40 bg-black/35 p-2 text-left hover:border-amber-700/60"
+        className="rounded-lg border border-white/20 bg-black/35 p-2 text-left hover:border-white/40"
         title="Change portrait"
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- static portrait asset */}
@@ -62,9 +62,9 @@ export function CharacterPortraitPicker({
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-xl rounded-xl border border-amber-900/40 bg-zinc-950/95 p-4 shadow-2xl">
+          <div className="w-full max-w-xl rounded-xl border border-white/20 bg-zinc-950/98 p-4 shadow-2xl backdrop-blur-sm">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-amber-100">Choose portrait</h3>
+              <h3 className="text-sm font-semibold text-zinc-100">Choose portrait</h3>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -82,7 +82,7 @@ export function CharacterPortraitPicker({
                     <label
                       key={portrait.id}
                       className={`cursor-pointer rounded border bg-zinc-900/60 p-2 text-center text-xs ${
-                        active ? "border-amber-700" : "border-zinc-700"
+                        active ? "border-white/50" : "border-zinc-700"
                       }`}
                     >
                       <input
@@ -111,7 +111,7 @@ export function CharacterPortraitPicker({
               <button
                 type="submit"
                 disabled={pending}
-                className="w-full rounded-lg border border-amber-800/60 bg-amber-950/30 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-900/35 disabled:opacity-70"
+                className="w-full rounded-lg border border-white/20 bg-black/55 py-2 text-sm font-semibold text-zinc-100 hover:border-white/35 hover:bg-black/70 disabled:opacity-70"
               >
                 {pending ? "Saving..." : "Save portrait"}
               </button>

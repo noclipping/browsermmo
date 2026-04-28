@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "InventoryItem_characterId_itemId_forge_affix_bonus_key" RENAME TO "InventoryItem_characterId_itemId_forgeLevel_affixPrefix_bon_key";

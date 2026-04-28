@@ -1,7 +1,9 @@
 "use client";
 
+import { ShopTransactionForm } from "@/components/shop-gold-fx";
 import { useMemo, useState } from "react";
 import type { ShopGearClientRow, ShopPlaystyle, ShopStatTag } from "@/lib/game/shop";
+import type { ShopTransactionResult } from "@/lib/game/shop-transaction";
 import { ItemHoverCard } from "@/components/item-hover-card";
 import { rarityNameClass } from "@/lib/game/item-rarity-styles";
 import type { ItemTooltipFields } from "@/lib/game/item-tooltip-text";
@@ -34,7 +36,7 @@ export function ShopGearList({
   defaultPlaystyle,
 }: {
   rows: ShopGearClientRow[];
-  buyAction: (formData: FormData) => Promise<void>;
+  buyAction: (formData: FormData) => Promise<ShopTransactionResult>;
   defaultPlaystyle: ShopPlaystyle;
   equippedBySlot: Partial<
     Record<
@@ -145,7 +147,7 @@ export function ShopGearList({
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="font-mono text-sm text-zinc-100">{row.price}g</span>
-                  <form action={buyAction}>
+                  <ShopTransactionForm transactionAction={buyAction}>
                     <input type="hidden" name="itemId" value={item.id} />
                     <button
                       type="submit"
@@ -155,7 +157,7 @@ export function ShopGearList({
                     >
                       Buy
                     </button>
-                  </form>
+                  </ShopTransactionForm>
                 </div>
               </li>
             );
