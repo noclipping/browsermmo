@@ -1,7 +1,7 @@
 import type { CharacterClass } from "@prisma/client";
 
 export type CombatTelemetryInput = {
-  mode: "SOLO";
+  mode: "SOLO" | "GUILD_BOSS";
   outcome: "VICTORY" | "DEFEAT" | "FLEE_SUCCESS" | "FLEE_FAIL";
   characterClass: CharacterClass;
   characterLevel: number;

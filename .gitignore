@@ -9,7 +9,31 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
+# realtime folder
+/realtime/node_modules
+/realtime/dist
+/realtime/prisma/migrations
+/realtime/prisma/client
+/realtime/prisma/schema.prisma
+/realtime/prisma/schema.prisma
+/realtime/package-lock.json
+/realtime/package.json
+/realtime/README.md
+/realtime/tsconfig.json
+/realtime/tsconfig.node.json
+/realtime/tsconfig.app.json
+/realtime/tsconfig.base.json
+/realtime/tsconfig.json
+/realtime/tsconfig.json
+/realtime/.env
+/realtime/.env.example
+/realtime/.env.local
+/realtime/.env.development.local
+/realtime/.env.test.local
+/realtime/.env.production.local
+/realtime/.env.development
+/realtime/.env.test
+/realtime/.env.production
 # testing
 /coverage
 

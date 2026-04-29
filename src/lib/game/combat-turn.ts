@@ -1,6 +1,6 @@
 /** Turn-based solo combat with telegraphed enemy intents (Slay-the-Spire-style delayed buffs). */
 
-import type { CharacterClass, EnemyIntent } from "@prisma/client";
+import type { CharacterClass, EnemyIntent, RogueSkill } from "@prisma/client";
 import {
   ENRAGE_PENDING_MULT,
   HARDEN_ARMOR_BASE,
@@ -16,6 +16,7 @@ export type TurnEncounterState = {
   enemyHp: number;
   enemyMaxHp: number;
   playerAttack: number;
+  playerDexterity: number;
   playerDefense: number;
   playerMana: number;
   playerMaxMana: number;
@@ -26,7 +27,9 @@ export type TurnEncounterState = {
   enemyDefense: number;
   enemyCrit: number;
   enemyIntent: EnemyIntent;
+  enemyStrikeStreak: number;
   round: number;
+  playerInvulnerableTurns: number;
   /** Applied on enemy's next STRIKE / HEAVY_ATTACK, then reset to 1. */
   enemyPendingDamageMult: number;
   /** Extra defense when you deal damage; cleared after your action. */
@@ -67,14 +70,29 @@ export function openingLine(): string {
 }
 
 /** Weighted intent for the *upcoming* round (visible to player before they act). */
-export function rollEnemyIntent(enemyHp: number, enemyMaxHp: number): EnemyIntent {
+function isStrikeIntent(intent: EnemyIntent): boolean {
+  return intent === "STRIKE" || intent === "HEAVY_ATTACK";
+}
+
+export function nextEnemyStrikeStreak(currentStreak: number, nextIntent: EnemyIntent): number {
+  return isStrikeIntent(nextIntent) ? Math.max(0, currentStreak) + 1 : 0;
+}
+
+export function rollEnemyIntent(enemyHp: number, enemyMaxHp: number, currentStrikeStreak = 0): EnemyIntent {
   const pct = enemyMaxHp > 0 ? enemyHp / enemyMaxHp : 1;
   const r = Math.random();
+
+  // Guardrail: enemy cannot chain STRIKE/HEAVY_ATTACK more than 2 turns in a row.
+  if (currentStrikeStreak >= 2) {
+    return r < 0.5 ? "GUARD" : "RECOVER";
+  }
 
   if (pct < 0.38 && r < 0.4) return "RECOVER";
   if (r < 0.22) return "ATTACK";
   if (r < 0.4) return "GUARD";
   if (r < 0.78) return "STRIKE";
+  // Guardrail: no HEAVY_ATTACK twice in a row.
+  if (currentStrikeStreak >= 1) return "STRIKE";
   return "HEAVY_ATTACK";
 }
 
@@ -127,6 +145,7 @@ export function encounterToTurnState(row: {
   enemyHp: number;
   enemyMaxHp: number;
   playerAttack: number;
+  playerDexterity?: number;
   playerDefense: number;
   playerSpeed: number;
   playerCrit: number;
@@ -137,9 +156,11 @@ export function encounterToTurnState(row: {
   enemySpeed: number;
   enemyCrit: number;
   enemyIntent: EnemyIntent;
+  enemyStrikeStreak?: number;
   round: number;
   enemyPendingDamageMult?: number | null;
   enemyPendingArmorVsPlayer?: number | null;
+  playerInvulnerableTurns?: number | null;
 }): TurnEncounterState {
   const mult = row.enemyPendingDamageMult;
   const armor = row.enemyPendingArmorVsPlayer;
@@ -149,6 +170,7 @@ export function encounterToTurnState(row: {
     enemyHp: row.enemyHp,
     enemyMaxHp: row.enemyMaxHp,
     playerAttack: row.playerAttack,
+    playerDexterity: Math.max(0, row.playerDexterity ?? 0),
     playerDefense: row.playerDefense,
     playerMana: Math.max(0, row.playerSpeed),
     playerMaxMana: Math.max(0, row.playerSpeed),
@@ -159,7 +181,12 @@ export function encounterToTurnState(row: {
     enemyDefense: row.enemyDefense,
     enemyCrit: row.enemyCrit,
     enemyIntent: row.enemyIntent,
+    enemyStrikeStreak: Math.max(0, row.enemyStrikeStreak ?? 0),
     round: row.round,
+    playerInvulnerableTurns:
+      row.playerInvulnerableTurns != null && Number.isFinite(Number(row.playerInvulnerableTurns))
+        ? Math.max(0, Math.floor(Number(row.playerInvulnerableTurns)))
+        : 0,
     enemyPendingDamageMult:
       mult != null && Number.isFinite(Number(mult)) ? Math.max(1, Math.min(MAX_ENEMY_PENDING_DAMAGE_MULT, Number(mult))) : 1,
     enemyPendingArmorVsPlayer:
@@ -215,10 +242,15 @@ function enemyChipAfterUtility(
   state: TurnEncounterState,
   playerDefending: boolean,
   lines: string[],
+  shadowActive: boolean,
 ): TurnEncounterState {
   const chip = Math.random() < 0.28;
   if (!chip) {
     lines.push("They keep pressure tight but do not commit a full swing.");
+    return state;
+  }
+  if (shadowActive) {
+    lines.push("🌑 Shadow Veil phases you through the probing hit.");
     return state;
   }
   let { damage } = rollDamage(Math.floor(state.enemyAttack * 0.32), state.playerDefense, 0);
@@ -244,6 +276,7 @@ export function resolveCombatRound(params: {
   enemyShortName: string;
   enemyLabel: string;
   playerClass?: CharacterClass;
+  rogueSkill?: RogueSkill | null;
   /** Snapshot INT from encounter (spell scaling). */
   playerIntelligence?: number;
 }): { state: TurnEncounterState; lines: string[] } {
@@ -265,6 +298,7 @@ export function resolveCombatRound(params: {
   } else if (params.playerAction === "SKILL") {
     const pc = params.playerClass;
     const intl = params.playerIntelligence ?? 0;
+    const dex = state.playerDexterity ?? 0;
     if (pc === "WARRIOR") {
       lines.push("⚔️ Heavy Strike — you put your weight behind a crushing blow!");
       const boosted = 1 + Math.max(0, state.playerSkillPowerBonus);
@@ -281,11 +315,27 @@ export function resolveCombatRound(params: {
         state = { ...state, playerMana: Math.max(0, state.playerMana - manaCost) };
       }
     } else if (pc === "ROGUE") {
-      lines.push("🏹 Volley — two shots in quick succession!");
-      for (let i = 0; i < 2 && state.enemyHp > 0; i++) {
-        lines.push(i === 0 ? "First shaft flies." : "Second shaft follows.");
-        const boosted = 1 + Math.max(0, state.playerSkillPowerBonus);
-        state = applyPlayerPhysicalHit(state, state.playerAttack * 0.85 * boosted, params.enemyLabel, state.playerCrit, lines, armorLog);
+      const rogueSkill = params.rogueSkill ?? "VOLLEY";
+      const boosted = 1 + Math.max(0, state.playerSkillPowerBonus);
+      if (rogueSkill === "DAGGER_STORM") {
+        lines.push("🗡️ Dagger Storm — steel flashes in a blurring arc!");
+        const roguePower = Math.floor(state.playerAttack * 0.4 + dex * 1.3);
+        const perHit = Math.floor(roguePower * 0.45 * boosted);
+        for (let i = 0; i < 3 && state.enemyHp > 0; i++) {
+          lines.push(i === 0 ? "First dagger bites." : i === 1 ? "Second cut follows." : "Third strike drives home.");
+          state = applyPlayerPhysicalHit(state, perHit, params.enemyLabel, state.playerCrit, lines, armorLog);
+        }
+      } else if (rogueSkill === "SHADOW") {
+        lines.push("🌑 Shadow Veil — you slip through the next hostile action untouched.");
+        state = { ...state, playerInvulnerableTurns: 1 };
+      } else {
+        lines.push("🏹 Volley — two shots in quick succession!");
+        const roguePower = Math.floor(state.playerAttack * 0.4 + dex * 1.3);
+        const perShot = Math.floor(roguePower * 0.65 * boosted);
+        for (let i = 0; i < 2 && state.enemyHp > 0; i++) {
+          lines.push(i === 0 ? "First shaft flies." : "Second shaft follows.");
+          state = applyPlayerPhysicalHit(state, perShot, params.enemyLabel, state.playerCrit, lines, armorLog);
+        }
       }
     } else {
       lines.push("You have no class skill — the moment is wasted.");
@@ -312,6 +362,10 @@ export function resolveCombatRound(params: {
   }
 
   lines.push(`— ${params.enemyShortName} acts (${intentDisplayName(intent)}) —`);
+  const shadowActive = state.playerInvulnerableTurns > 0;
+  if (shadowActive) {
+    state = { ...state, playerInvulnerableTurns: 0 };
+  }
 
   if (intent === "RECOVER") {
     const heal = Math.max(8, Math.floor(state.enemyMaxHp * 0.11 + Math.random() * 6));
@@ -322,6 +376,10 @@ export function resolveCombatRound(params: {
     const chip = Math.random() < 0.35;
     if (chip) {
       let { damage } = rollDamage(Math.floor(state.enemyAttack * 0.35), state.playerDefense, 0);
+      if (shadowActive) {
+        lines.push("🌑 Shadow Veil turns the follow-up strike into mist.");
+        return { state, lines };
+      }
       if (playerDefending) {
         const raw = damage;
         damage = Math.max(1, Math.floor(damage * 0.45));
@@ -345,7 +403,7 @@ export function resolveCombatRound(params: {
       `${params.enemyLabel} roars — Enrage stacks. Next hit damage ×${nextMult.toFixed(2)} (was ×${state.enemyPendingDamageMult.toFixed(2)}).`,
     );
     state = { ...state, enemyPendingDamageMult: nextMult };
-    return { state: enemyChipAfterUtility(state, playerDefending, lines), lines };
+    return { state: enemyChipAfterUtility(state, playerDefending, lines, shadowActive), lines };
   }
 
   if (intent === "GUARD") {
@@ -355,7 +413,7 @@ export function resolveCombatRound(params: {
       `${params.enemyLabel} Hardens — your next damaging action faces +${nextArmor} effective armor against these blows.`,
     );
     state = { ...state, enemyPendingArmorVsPlayer: nextArmor };
-    return { state: enemyChipAfterUtility(state, playerDefending, lines), lines };
+    return { state: enemyChipAfterUtility(state, playerDefending, lines, shadowActive), lines };
   }
 
   // STRIKE or HEAVY_ATTACK — damage turn; consume pending enrage mult.
@@ -368,6 +426,11 @@ export function resolveCombatRound(params: {
   const crit = rolled.crit;
   damage = Math.max(1, Math.floor(damage * mult));
   state = { ...state, enemyPendingDamageMult: 1 };
+
+  if (shadowActive) {
+    lines.push("🌑 Shadow Veil nullifies the incoming blow.");
+    return { state, lines };
+  }
 
   if (chargedMult > 1.01) {
     lines.push(`Their charged blow releases stored fury (×${chargedMult.toFixed(2)} on top of this swing).`);
@@ -401,12 +464,14 @@ export function runAutoBattle(params: {
   enemyShortName: string;
   enemyLabel: string;
   startRound: number;
+  initialEnemyStrikeStreak?: number;
   initialPotionCount: number;
   /** Turns before auto-battle may sip again (mirrors manual potion cooldown). */
   initialPotionCooldown?: number;
   potionCooldownAfterUse?: number;
 }): { state: TurnEncounterState; lines: string[]; potionsRemaining: number } {
   let s = { ...params.state };
+  let strikeStreak = Math.max(0, params.initialEnemyStrikeStreak ?? s.enemyStrikeStreak ?? 0);
   let potions = params.initialPotionCount;
   let potionCd = Math.max(0, params.initialPotionCooldown ?? 0);
   const potionCdAfter = Math.max(1, params.potionCooldownAfterUse ?? 2);
@@ -441,6 +506,7 @@ export function runAutoBattle(params: {
       enemyLabel: params.enemyLabel,
     });
     s = res.state;
+    strikeStreak = s.enemyStrikeStreak;
     lines.push(...res.lines);
     exchanges++;
 
@@ -449,7 +515,9 @@ export function runAutoBattle(params: {
       break;
     }
 
-    s = { ...s, enemyIntent: rollEnemyIntent(s.enemyHp, s.enemyMaxHp) };
+    const nextIntent = rollEnemyIntent(s.enemyHp, s.enemyMaxHp, strikeStreak);
+    strikeStreak = nextEnemyStrikeStreak(strikeStreak, nextIntent);
+    s = { ...s, enemyIntent: nextIntent, enemyStrikeStreak: strikeStreak };
     roundCounter += 1;
   }
 

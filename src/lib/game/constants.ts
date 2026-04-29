@@ -1,4 +1,4 @@
-import { CharacterClass, ItemSlot, Rarity } from "@prisma/client";
+import { CharacterClass, ItemSlot, Rarity, RogueSkill } from "@prisma/client";
 
 export const EQUIPMENT_SLOTS: ItemSlot[] = ["WEAPON", "HELMET", "CHEST", "GLOVES", "BOOTS", "RING", "AMULET"];
 /** Crimson Tonic carry cap in backpack. */
@@ -80,7 +80,7 @@ export const INT_MAGIC_ATK_FACTOR = 0.4;
 /** Base mana granted from intelligence. */
 export const INT_MANA_PER_POINT = 2;
 /** Bonus ranged damage from dexterity. */
-export const DEX_RANGED_ATK_FACTOR = 0.2;
+export const DEX_RANGED_ATK_FACTOR = 0.4;
 /** Crit chance per dexterity point (capped in build). */
 export const DEX_CRIT_PER_POINT = 0.003;
 export const MAX_CRIT_FROM_STATS = 0.42;
@@ -126,3 +126,29 @@ export const CLASS_SKILLS: Record<
     description: "Two hits at 70% damage each. 3-turn cooldown.",
   },
 };
+
+export const ROGUE_SKILLS: Record<RogueSkill, { name: string; emoji: string; cooldown: number; description: string }> = {
+  VOLLEY: {
+    name: "Volley",
+    emoji: "🏹",
+    cooldown: 3,
+    description: "Two quick shots at 85% damage each.",
+  },
+  DAGGER_STORM: {
+    name: "Dagger Storm",
+    emoji: "🗡️",
+    cooldown: 3,
+    description: "Three rapid dagger strikes at 65% damage each.",
+  },
+  SHADOW: {
+    name: "Shadow Veil",
+    emoji: "🌑",
+    cooldown: 2,
+    description: "Become untouchable for one enemy action this turn.",
+  },
+};
+
+export function activeSkillForCharacter(characterClass: CharacterClass, rogueSkill?: RogueSkill | null) {
+  if (characterClass === "ROGUE") return ROGUE_SKILLS[rogueSkill ?? "VOLLEY"];
+  return CLASS_SKILLS[characterClass];
+}

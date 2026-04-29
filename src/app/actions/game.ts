@@ -1,6 +1,6 @@
 "use server";
 
-import { ItemSlot } from "@prisma/client";
+import { ItemSlot, RogueSkill } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -48,6 +48,10 @@ const allocateStatSchema = z.object({
   stat: z.enum(["STRENGTH", "CONSTITUTION", "INTELLIGENCE", "DEXTERITY"]),
 });
 
+const rogueSkillSchema = z.object({
+  skill: z.enum(["VOLLEY", "DAGGER_STORM", "SHADOW"]),
+});
+
 /** Spend one stat point on STR / CON / INT / DEX (CON also bumps current and max HP). */
 export async function allocateStatAction(formData: FormData) {
   const user = await requireUser();
@@ -77,6 +81,23 @@ export async function allocateStatAction(formData: FormData) {
     },
   });
   revalidatePath("/town", "layout");
+}
+
+/** Character-only: switch active rogue combat skill loadout. */
+export async function updateRogueSkillAction(formData: FormData) {
+  const user = await requireUser();
+  const character = await requireCharacter(user.id);
+  if (character.class !== "ROGUE") return;
+  const parsed = rogueSkillSchema.safeParse({ skill: formData.get("skill") });
+  if (!parsed.success) return;
+  const skill = parsed.data.skill as RogueSkill;
+  await prisma.character.update({
+    where: { id: character.id },
+    data: { rogueSkill: skill },
+  });
+  revalidatePath("/character", "page");
+  revalidatePath("/town", "layout");
+  revalidatePath("/adventure", "page");
 }
 
 export async function changeRegionAction(formData: FormData) {
@@ -485,8 +506,8 @@ export async function sellItemAction(formData: FormData): Promise<ShopTransactio
   return { ok: true, delta: goldGain };
 }
 
-/** Town-only: buy one health potion for gold (placeholder shop). */
-export async function buyPotionAction(_formData?: FormData): Promise<ShopTransactionResult> {
+/** Town-only: buy health potions for gold (quantity from form, defaults to 1). */
+export async function buyPotionAction(formData?: FormData): Promise<ShopTransactionResult> {
   const user = await requireUser();
   const character = await requireCharacter(user.id);
   const town = await prisma.region.findUnique({ where: { key: "town_outskirts" } });
@@ -517,24 +538,33 @@ export async function buyPotionAction(_formData?: FormData): Promise<ShopTransac
       bonusDexterity: 0,
     },
   });
-  if ((existingPotions?.quantity ?? 0) >= MAX_POTIONS_IN_PACK) return { ok: false };
+  const currentPotions = existingPotions?.quantity ?? 0;
+  if (currentPotions >= MAX_POTIONS_IN_PACK) return { ok: false };
+  const requestedRaw = Number(formData?.get("quantity") ?? 1);
+  const requested = Number.isFinite(requestedRaw) ? Math.floor(requestedRaw) : 1;
+  if (requested < 1) return { ok: false };
+  const room = Math.max(0, MAX_POTIONS_IN_PACK - currentPotions);
+  const affordable = Math.floor(character.gold / price);
+  const quantity = Math.min(requested, room, affordable);
+  if (quantity < 1) return { ok: false };
+  const totalPrice = price * quantity;
 
   await prisma.$transaction(async (tx) => {
     await tx.character.update({
       where: { id: character.id },
-      data: { gold: { decrement: price } },
+      data: { gold: { decrement: totalPrice } },
     });
     await addItemQuantityCapped(tx, {
       characterId: character.id,
       itemId: potion.id,
       itemKey: potion.key,
-      delta: 1,
+      delta: quantity,
     });
   });
 
   revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
-  return { ok: true, delta: -price };
+  return { ok: true, delta: -totalPrice };
 }
 
 /** Out-of-combat: consume one tonic from pack to heal immediately. */
@@ -583,8 +613,8 @@ export async function consumeTonicOutsideCombatAction() {
   revalidatePath("/character", "page");
 }
 
-/** Town-only: buy one smithing stone for premium gold cost. */
-export async function buySmithingStoneAction(_formData?: FormData): Promise<ShopTransactionResult> {
+/** Town-only: buy smithing stones for premium gold cost (quantity from form, defaults to 1). */
+export async function buySmithingStoneAction(formData?: FormData): Promise<ShopTransactionResult> {
   const user = await requireUser();
   const character = await requireCharacter(user.id);
   const town = await prisma.region.findUnique({ where: { key: "town_outskirts" } });
@@ -596,6 +626,13 @@ export async function buySmithingStoneAction(_formData?: FormData): Promise<Shop
   const price = shopStoneBuyPrice(tier);
 
   if (character.gold < price) return { ok: false };
+  const requestedRaw = Number(formData?.get("quantity") ?? 1);
+  const requested = Number.isFinite(requestedRaw) ? Math.floor(requestedRaw) : 1;
+  if (requested < 1) return { ok: false };
+  const affordable = Math.floor(character.gold / price);
+  const quantity = Math.min(requested, affordable);
+  if (quantity < 1) return { ok: false };
+  const totalPrice = price * quantity;
 
   const stone = await prisma.item.findUnique({ where: { key: SMITHING_STONE_ITEM_KEY } });
   if (!stone) return { ok: false };
@@ -603,20 +640,20 @@ export async function buySmithingStoneAction(_formData?: FormData): Promise<Shop
   await prisma.$transaction(async (tx) => {
     await tx.character.update({
       where: { id: character.id },
-      data: { gold: { decrement: price } },
+      data: { gold: { decrement: totalPrice } },
     });
     await addItemQuantityCapped(tx, {
       characterId: character.id,
       itemId: stone.id,
       itemKey: stone.key,
-      delta: 1,
+      delta: quantity,
     });
   });
 
   revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
   revalidatePath("/forge", "layout");
-  return { ok: true, delta: -price };
+  return { ok: true, delta: -totalPrice };
 }
 
 /** Town-only: free full heal at campfire, on a cooldown between uses. */

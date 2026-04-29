@@ -321,7 +321,7 @@ export default async function FriendsPage() {
 
           <div className="hidden min-w-0 lg:block">
             <div className="lg:sticky lg:top-4 lg:mr-auto lg:w-[min(22rem,100%)]">
-              <WorldChatPanel />
+              <WorldChatPanel username={character.name} userId={user.id} />
             </div>
           </div>
         </div>
@@ -337,7 +337,7 @@ export default async function FriendsPage() {
               consumeTonicAction={consumeTonicOutsideCombatAction}
             />
           }
-          chatPanel={<WorldChatPanel compact />}
+          chatPanel={<WorldChatPanel compact username={character.name} userId={user.id} />}
         />
       </main>
     </div>

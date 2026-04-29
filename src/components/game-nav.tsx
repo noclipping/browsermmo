@@ -48,6 +48,7 @@ export function GameNav({
   const playersActive =
     pathname === "/players" || pathname.startsWith("/player/");
   const friendsActive = pathname === "/friends";
+  const guildActive = pathname === "/guild";
 
   const townBlockedTitle =
     "Finish or flee your current fight before traveling.";
@@ -125,14 +126,14 @@ export function GameNav({
             className={`${pill} ${activeCls} cursor-default`}
             aria-current="page"
           >
-            Town
+            🏘️ Town
           </span>
         ) : combatLocked ? (
           <span
             className={`${pill} ${inactive} cursor-not-allowed`}
             title={townBlockedTitle}
           >
-            Town
+            🏘️ Town
           </span>
         ) : inTownRegion ? (
           <Link
@@ -140,7 +141,7 @@ export function GameNav({
             className={`${pill} ${tap} ${inactive}`}
             title="Town hub"
           >
-            Town
+            🏘️ Town
           </Link>
         ) : (
           <form action={returnToTownAction}>
@@ -149,7 +150,7 @@ export function GameNav({
               className={`${pill} ${tap} ${inactive}`}
               title={townTravelTitle}
             >
-              Town
+              🏘️ Town
             </button>
           </form>
         )}
@@ -159,14 +160,14 @@ export function GameNav({
             className={`${pill} ${inactive} cursor-not-allowed`}
             title={townBlockedTitle}
           >
-            Shop
+            🛒 Shop
           </span>
         ) : pathname === "/shop" ? (
           <span
             className={`${pill} ${activeCls} cursor-default`}
             aria-current="page"
           >
-            Shop
+            🛒 Shop
           </span>
         ) : inTownRegion ? (
           <Link
@@ -174,7 +175,7 @@ export function GameNav({
             className={`${pill} ${tap} ${inactive}`}
             title="Town market (Town Outskirts only)"
           >
-            Shop
+            🛒 Shop
           </Link>
         ) : (
           <form action={returnToTownAndShopAction}>
@@ -183,7 +184,7 @@ export function GameNav({
               className={`${pill} ${tap} ${inactive}`}
               title="Return to Town Outskirts and open market"
             >
-              Shop
+              🛒 Shop
             </button>
           </form>
         )}
@@ -193,11 +194,11 @@ export function GameNav({
             className={`${pill} ${activeCls} cursor-default`}
             aria-current="page"
           >
-            Adventure
+            ⚔️ Adventure
           </span>
         ) : (
           <Link href="/adventure" className={`${pill} ${tap} ${inactive}`}>
-            Adventure
+            ⚔️ Adventure
           </Link>
         )}
 
@@ -206,11 +207,11 @@ export function GameNav({
             className={`${pill} ${activeCls} cursor-default`}
             aria-current="page"
           >
-            Character
+            🧙 Character
           </span>
         ) : (
           <Link href="/character" className={`${pill} ${tap} ${inactive}`}>
-            Character
+            🧙 Character
           </Link>
         )}
 
@@ -219,21 +220,31 @@ export function GameNav({
             className={`${pill} ${activeCls} cursor-default`}
             aria-current="page"
           >
-            Players
+            👥 Players
           </span>
         ) : (
           <Link href="/players" className={`${pill} ${tap} ${inactive}`}>
-            Players
+            👥 Players
           </Link>
         )}
 
         {friendsActive ? (
           <span className={`${pill} ${activeCls} cursor-default`} aria-current="page">
-            Friends
+            🤝 Friends
           </span>
         ) : (
           <Link href="/friends" className={`${pill} ${tap} ${inactive}`}>
-            Friends
+            🤝 Friends
+          </Link>
+        )}
+
+        {guildActive ? (
+          <span className={`${pill} ${activeCls} cursor-default`} aria-current="page">
+            🛡️ Guild
+          </span>
+        ) : (
+          <Link href="/guild" className={`${pill} ${tap} ${inactive}`}>
+            🛡️ Guild
           </Link>
         )}
       </nav>

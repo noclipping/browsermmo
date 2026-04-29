@@ -151,6 +151,54 @@ Create discoverable player identity and social presence.
 
 ---
 
+## Phase 1.5: Friends system (async)
+
+### Purpose
+
+Add player-to-player social ties before realtime guild/group systems.
+
+### Data models
+
+- `Friendship` with statuses `PENDING | ACCEPTED | DECLINED | CANCELLED`
+
+### API/server actions
+
+- Send friend request
+- Accept / decline incoming requests
+- Cancel outgoing request
+- Remove friend
+
+### Frontend
+
+- Add-friend stateful CTA on public profiles and player directory
+- Friends page with accepted/incoming/outgoing sections
+
+### Socket events
+
+- None required (async-only slice).
+
+### Risks
+
+- Duplicate pending requests
+- Self-friending
+- Button state drift across pages
+
+### Likely files
+
+- `prisma/schema.prisma`
+- `src/app/actions/friends.ts`
+- `src/app/friends/page.tsx`
+- `src/app/player/[name]/page.tsx`
+- `src/app/players/page.tsx`
+
+### Test checklist
+
+- Self-friend blocked
+- Duplicate pending blocked
+- Accept/decline/cancel/remove flows all re-render correctly
+
+---
+
 ## Phase 2: Socket foundation + world chat
 
 ### Purpose
@@ -252,45 +300,70 @@ Add durable social grouping and retention loops.
 
 ### Purpose
 
-Deliver cooperative guild progression without scheduling constraints.
+Deliver cooperative guild progression without scheduling constraints. **Guild Level** (from existing `Guild.xp` / `getGuildLevelFromXp`) gates which boss tiers exist for that guild so boss content feels earned; shared boss HP, per-member daily attempts, and contribution-based rewards sit on the same async spine as before.
 
-### Data models
+### Progression layer (Guild Level)
 
-- `GuildBossSeason`
-- `GuildBossAttempt`
-- `GuildBossContribution`
-- reward-claim table
+- Boss **availability** is **not** “all bosses day one”: each boss has a **minimum guild level** (initial ladder: L1 Rat King → L3 Ogre → L5 Warden → L8 Drake → L12 Titan).
+- Higher guild level unlocks **stronger tiers** (harder HP, better rewards, larger **Guild XP** payout on defeat via `awardGuildXp(..., "guild_boss")`).
+- Defeat XP per tier is **much larger** than donation XP (e.g. 500–15,000 guild XP by tier); donations remain a separate progression lever.
+
+### Boss scaling (shared HP)
+
+- **Shared guild-wide** current/max HP on the season (or boss instance) row.
+- `bossMaxHp = baseBossHp + (memberCount * hpPerMember)` per boss definition.
+- **Member count:** prefer **active** members (`User.lastSeenAt` window) when implemented; **fallback** to total `GuildMember` count for v1 simplicity.
+
+### Data models (unchanged spine)
+
+- `GuildBossSeason` — boss identity, shared HP, boundaries, link to guild + boss tier.
+- `GuildBossAttempt` — `userId`, `guildId`, `bossId` / `seasonId`, `damageDealt`, `createdAt`; idempotency / status to block double-submit.
+- `GuildBossContribution` — per-user damage aggregates for rewards.
+- Reward-claim table — personal claim state (participation + clear upgrade).
+
+### Attempts
+
+- **3 attempts per member per 24h** (simple reset; calendar vs rolling documented in task plan).
+- Decrement **only** on **valid** completed submission after server-side combat resolution.
+- Leave **room** for future “attempts scale slightly with guild level, cap 5” without building it now.
+
+### Rewards
+
+- Contributors who meet **min threshold** (≥ **1% of boss max HP** **or** small flat min damage) qualify for **clear** rewards when the guild wins.
+- Reward quality scales with **boss tier**, **damage contribution**, and **defeated vs not**; avoid one carry invalidating everyone (relative scaling + threshold).
 
 ### API/server actions
 
-- Start/rollover season.
-- Submit attempts and aggregate damage.
+- Start/rollover season (boss choice must respect guild level unlocks).
+- Submit attempt (turn-based combat reuse), atomic damage + contribution + HP update.
 - Reward claim endpoints.
 
 ### Frontend
 
-- Guild boss progress + personal contribution + rewards.
+- Guild boss panel: HP, unlock ladder, attempts remaining, contribution, claims.
 
-### Socket events
+### Socket events (optional polish)
 
 - `guildBoss:update`
 - `guildBoss:seasonEnded`
 
 ### Risks
 
-- Double-submit exploits; rollover race conditions.
+- Double-submit exploits; last-hit races; rollover race conditions; spoofed unlock tier (always re-read `Guild.xp` server-side).
 
 ### Likely files
 
-- guild boss domain modules (new)
+- Detailed design: `docs/tasks/phase-4-async-guild-boss.md`
+- guild boss domain modules (new), boss definition config (HP bases, unlock levels, defeat guild XP)
 - `src/app/guild/page.tsx`
 - `prisma/schema.prisma`
+- `src/lib/game/guild-xp.ts` (`awardGuildXp` with `"guild_boss"`)
 
 ### Test checklist
 
-- Atomic accounting.
-- Idempotent rollovers.
-- Correct reward distribution.
+- Unlock gating vs guild level; HP formula; attempt cap; atomic HP/contributions.
+- Idempotent attempts / no duplicate damage.
+- Defeat grants guild XP once; reward threshold and clear upgrade behavior.
 
 ---
 

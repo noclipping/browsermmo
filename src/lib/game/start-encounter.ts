@@ -7,9 +7,9 @@ export function enemyKindFromRow(enemy: { isElite: boolean; isAdventureMiniBoss:
   if (enemy.isElite) return "elite";
   return "normal";
 }
-import { CLASS_SKILLS, HEALTH_POTION_ITEM_KEY, MAX_POTIONS_PER_BATTLE, POTION_COOLDOWN_AFTER_USE_TURNS } from "@/lib/game/constants";
+import { activeSkillForCharacter, HEALTH_POTION_ITEM_KEY, MAX_POTIONS_PER_BATTLE, POTION_COOLDOWN_AFTER_USE_TURNS } from "@/lib/game/constants";
 import { computeFleeChance } from "@/lib/game/combat-flee-execute";
-import { openingLine, rollEnemyIntent } from "@/lib/game/combat-turn";
+import { nextEnemyStrikeStreak, openingLine, rollEnemyIntent } from "@/lib/game/combat-turn";
 import { forgedAffixScaledBonuses } from "@/lib/game/item-affixes";
 import { buildCharacterStats } from "@/lib/game/stats";
 
@@ -115,6 +115,7 @@ export async function createSoloEncounter(
   });
 
   const firstIntent = rollEnemyIntent(params.enemy.hp, params.enemy.hp);
+  const firstStrikeStreak = nextEnemyStrikeStreak(0, firstIntent);
   const log: string[] = [
     ...params.flavorPrefixLines,
     openingLine(),
@@ -153,11 +154,14 @@ export async function createSoloEncounter(
       enemySpeed: scaledEnemyStat(params.enemy.speed),
       enemyCrit: 0.045 * ENEMY_POWER_MULTIPLIER,
       enemyIntent: firstIntent,
+      enemyStrikeStreak: firstStrikeStreak,
       round: 1,
       skillCooldownRemaining: 0,
+      playerInvulnerableTurns: 0,
       potionCooldownRemaining: 0,
-      // Include gear bonuses so mage skill scaling uses effective INT.
+      // Include gear bonuses so class skill scaling uses effective primary stats.
       playerIntelligence: computed.intelligence,
+      playerDexterity: computed.dexterity,
       playerLifeSteal: computed.lifeSteal,
       playerSkillPowerBonus: computed.skillPowerBonus,
       enemyPendingDamageMult: 1,
@@ -258,7 +262,7 @@ export function toStartResponse(
   potionCount: number,
   log: string[],
 ): SoloEncounterStartJson {
-  const skill = CLASS_SKILLS[character.class];
+  const skill = activeSkillForCharacter(character.class, character.rogueSkill);
   const potionsUsed = log.reduce((sum, line) => (line.toLowerCase().includes("crimson tonic") ? sum + 1 : sum), 0);
   const potionBattleRemaining = Math.max(0, Math.min(potionCount, MAX_POTIONS_PER_BATTLE - potionsUsed));
   return {

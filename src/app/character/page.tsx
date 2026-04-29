@@ -6,10 +6,11 @@ import {
   returnToTownAction,
   returnToTownAndShopAction,
   unequipSlotAction,
+  updateRogueSkillAction,
 } from "@/app/actions/game";
 import { AdventureLoadoutPanel } from "@/components/adventure-loadout-panel";
 import { ADVENTURE_REGIONS } from "@/lib/game/adventure";
-import { CLASS_SKILLS } from "@/lib/game/constants";
+import { activeSkillForCharacter, ROGUE_SKILLS } from "@/lib/game/constants";
 import { requiredXpForLevel } from "@/lib/game/progression";
 import { GameNav } from "@/components/game-nav";
 import { GameTopBar } from "@/components/game-top-bar";
@@ -53,7 +54,7 @@ export default async function CharacterPage() {
       .filter((entry) => entry.item)
       .map((entry) => [entry.slot, entry]),
   );
-  const classSkill = CLASS_SKILLS[character.class];
+  const classSkill = activeSkillForCharacter(character.class, character.rogueSkill);
   const canAllocate = character.statPoints > 0;
   const inTownRegion = !!townRegion && character.regionId === townRegion.id;
   const combatLocked = !!combatActive;
@@ -176,6 +177,29 @@ export default async function CharacterPage() {
             </p>
             <p className="mt-2 text-sm leading-relaxed text-zinc-400">{classSkill.description}</p>
             <p className="mt-3 text-xs text-zinc-600">Use the Skill button in turn-based combat when your cooldown is clear.</p>
+            {character.class === "ROGUE" ? (
+              <form action={updateRogueSkillAction} className="mt-3 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Rogue skill loadout</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(ROGUE_SKILLS).map(([key, skill]) => (
+                    <button
+                      key={key}
+                      type="submit"
+                      name="skill"
+                      value={key}
+                      className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${
+                        character.rogueSkill === key
+                          ? "border-violet-300/60 bg-violet-400/20 text-violet-100"
+                          : "border-white/20 bg-black/55 text-zinc-200 hover:border-white/35 hover:bg-black/70"
+                      }`}
+                      title={skill.description}
+                    >
+                      {skill.emoji} {skill.name}
+                    </button>
+                  ))}
+                </div>
+              </form>
+            ) : null}
           </article>
           <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
             <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Public profile bio</h2>
@@ -342,7 +366,7 @@ export default async function CharacterPage() {
           </div>
           <div className="hidden min-w-0 lg:block">
             <div className="lg:sticky lg:top-4 lg:mr-auto lg:w-[min(22rem,100%)]">
-              <WorldChatPanel />
+              <WorldChatPanel username={character.name} userId={user.id} />
             </div>
           </div>
         </div>
@@ -357,7 +381,7 @@ export default async function CharacterPage() {
               consumeTonicAction={consumeTonicOutsideCombatAction}
             />
           }
-          chatPanel={<WorldChatPanel compact />}
+          chatPanel={<WorldChatPanel compact username={character.name} userId={user.id} />}
         />
       </main>
     </div>

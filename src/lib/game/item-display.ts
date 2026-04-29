@@ -1,6 +1,6 @@
 import type { Item, Rarity } from "@prisma/client";
 import { forgedAffixScaledBonuses, forgedStatsForEntry } from "@/lib/game/item-affixes";
-import { isMagicWeapon } from "@/lib/game/weapon-classification";
+import { weaponType } from "@/lib/game/weapon-classification";
 
 /** Stored legendary/godly roll on `CharacterEquipment` / inventory row (before forge scaling). */
 export type GearStoredAffixBonuses = {
@@ -40,7 +40,18 @@ export function gearStatSummary(item: Item, slot: string, forgeLevel?: number | 
   const def = item.defense + forged.defense;
   const hp = item.hp + forged.hp;
   const parts: string[] = [];
-  if (atk) parts.push(`+${atk} ${isMagicWeapon({ ...item, slot }) ? "INT" : "ATK"}`);
+  const nonWeaponInt = slot !== "WEAPON" && item.requiredIntelligence > 0 && item.requiredIntelligence >= item.requiredDexterity;
+  const nonWeaponDex = slot !== "WEAPON" && item.requiredDexterity > 0 && item.requiredDexterity > item.requiredIntelligence;
+  const wt = slot === "WEAPON" ? weaponType(item) : "MELEE";
+  const offenseLabel =
+    wt === "MAGIC" || nonWeaponInt
+      ? "INT"
+      : wt === "RANGED" || nonWeaponDex
+        ? "DEX"
+        : wt === "DAGGER"
+          ? "STR/DEX"
+          : "ATK";
+  if (atk) parts.push(`+${atk} ${offenseLabel}`);
   if (def) parts.push(`+${def} DEF`);
   if (hp) parts.push(`+${hp} HP`);
   return parts.join(" ");

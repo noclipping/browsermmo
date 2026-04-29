@@ -32,6 +32,13 @@
 - **Deeper social:** Friends, guilds, parties, inspect — after core progression is trusted.
 - **Live ops hooks:** Events, rotating modifiers, or admin tooling — TBD.
 
+## Multiplayer slices status
+
+- **Phase 1:** player identity / profiles / lookup — in progress.
+- **Phase 1.5:** async friends system — in progress.
+- **Phase 2:** socket foundation + world chat baseline — in progress.
+- **Phase 3:** guild foundation + async guild chat — started with first server-rendered slice.
+
 ## Systems intentionally postponed
 
 - **Real-time / synchronous multiplayer combat.**

@@ -86,6 +86,14 @@ function regionalGodlyWeaponItemKey(tier: number, cls: WeaponClassKey): string {
   return `loot_reg${tier}_${cls}_GODLY`;
 }
 
+function regionalDaggerItemKey(tier: number, rarity: WeaponDropRarity): string {
+  return `loot_reg${tier}_ranger_dagger_${rarity}`;
+}
+
+function regionalGodlyDaggerItemKey(tier: number): string {
+  return `loot_reg${tier}_ranger_dagger_GODLY`;
+}
+
 type WStats = Pick<ItemSeed, "attack" | "defense" | "hp" | "speed" | "value"> &
   Partial<Pick<ItemSeed, "requiredLevel" | "requiredStrength" | "requiredConstitution" | "requiredIntelligence" | "requiredDexterity">>;
 
@@ -265,6 +273,7 @@ const WEAPON_CLASS_EMOJI: Record<WeaponClassKey, string> = {
 };
 
 const APPAREL_SLOTS: ItemSlot[] = ["HELMET", "CHEST", "GLOVES", "BOOTS", "RING", "AMULET"];
+const ARMOR_SLOTS: ItemSlot[] = ["HELMET", "CHEST", "GLOVES", "BOOTS"];
 
 const APPAREL_TIER_LABELS: Record<number, [string, string]> = {
   0: ["Outskirts", "Gutter"],
@@ -294,35 +303,40 @@ function buildRegionalCommonApparel(): ItemSeed[] {
         let speed = 0;
         let name = "";
         if (slot === "HELMET") {
-          defense = 1 + tier;
-          hp = 2 + tier * 2;
+          defense = cls === "warrior" ? 2 + tier : cls === "ranger" ? 1 + tier : Math.max(0, tier);
+          hp = cls === "warrior" ? 4 + tier * 3 : cls === "ranger" ? 2 + tier * 2 : 1 + tier;
+          attack = cls === "ranger" ? 1 + Math.floor(tier / 2) : cls === "mage" ? 1 + tier : 0;
           name =
             cls === "warrior" ? `${prefix} Bascinet` : cls === "ranger" ? `${prefix} Leather Hood` : `${prefix} Circlet`;
         } else if (slot === "CHEST") {
-          defense = 2 + tier;
-          hp = 4 + tier * 3;
+          defense = cls === "warrior" ? 4 + tier : cls === "ranger" ? 2 + tier : 1 + Math.floor(tier / 2);
+          hp = cls === "warrior" ? 8 + tier * 4 : cls === "ranger" ? 4 + tier * 2 : 3 + tier * 2;
+          attack = cls === "ranger" ? 1 + tier : cls === "mage" ? 2 + tier : 0;
+          speed = cls === "ranger" ? 1 : 0;
           name = cls === "warrior" ? `${prefix} Hauberk` : cls === "ranger" ? `${prefix} Jerkin` : `${prefix} Spellwrap`;
         } else if (slot === "GLOVES") {
-          attack = cls === "warrior" ? 1 : 0;
-          defense = 1;
-          speed = cls === "ranger" ? 2 : cls === "mage" ? 0 : 1;
-          hp = cls === "mage" ? 1 : 0;
+          attack = cls === "warrior" ? 0 : cls === "ranger" ? 1 + Math.floor(tier / 2) : 1 + tier;
+          defense = cls === "warrior" ? 2 : 1;
+          speed = cls === "ranger" ? 2 : cls === "mage" ? 1 : 0;
+          hp = cls === "warrior" ? 2 + tier : cls === "ranger" ? 1 : 0;
           name = cls === "warrior" ? `${prefix} Gauntlets` : cls === "ranger" ? `${prefix} Bracers` : `${prefix} Grips`;
         } else if (slot === "BOOTS") {
-          defense = 1;
-          speed = cls === "ranger" ? 2 + tier : 1 + Math.floor(tier / 2);
-          hp = cls === "warrior" ? 2 + tier : 1;
+          attack = cls === "ranger" ? 1 + Math.floor(tier / 2) : cls === "mage" ? 1 + tier : 0;
+          defense = cls === "warrior" ? 2 : cls === "ranger" ? 1 + Math.floor(tier / 2) : 1;
+          speed = cls === "ranger" ? 2 + tier : cls === "mage" ? 1 + Math.floor(tier / 2) : 0;
+          hp = cls === "warrior" ? 3 + tier : cls === "ranger" ? 1 + Math.floor(tier / 2) : 0;
           name = cls === "ranger" ? `${prefix} Treads` : `${prefix} Marchers`;
         } else if (slot === "RING") {
-          attack = 1;
-          defense = 1;
-          hp = cls === "mage" ? 2 + tier : 1;
-          speed = cls === "ranger" ? 1 : 0;
+          attack = cls === "warrior" ? 0 : cls === "ranger" ? 2 + tier : 2 + tier;
+          defense = cls === "warrior" ? 2 : cls === "ranger" ? 1 : 0;
+          hp = cls === "warrior" ? 3 + tier * 2 : cls === "mage" ? 1 + tier : 1;
+          speed = cls === "ranger" ? 1 : cls === "mage" ? 1 : 0;
           name = cls === "warrior" ? `${zone} Signet` : cls === "ranger" ? `${zone} Loop` : `${zone} Band`;
         } else if (slot === "AMULET") {
-          attack = cls === "mage" ? 1 : 0;
-          hp = 2 + tier * 2;
-          speed = cls === "ranger" ? 1 : 0;
+          attack = cls === "warrior" ? 0 : cls === "ranger" ? 2 + tier : 3 + tier;
+          defense = cls === "warrior" ? 2 + Math.floor(tier / 2) : cls === "ranger" ? 1 : 0;
+          hp = cls === "warrior" ? 4 + tier * 3 : cls === "ranger" ? 2 + tier : 1 + tier;
+          speed = cls === "ranger" ? 1 : cls === "mage" ? 1 : 0;
           name = cls === "warrior" ? `${zone} Token` : cls === "ranger" ? `${zone} Talisman` : `${zone} Charm`;
         }
         const slotSlug = slot.toLowerCase();
@@ -364,8 +378,68 @@ function buildRegionalCommonApparel(): ItemSeed[] {
   return out;
 }
 
+/** Legendary armor variants (helm/chest/gloves/boots) for each region + class line. */
+function buildRegionalLegendaryArmor(): ItemSeed[] {
+  const common = buildRegionalCommonApparel();
+  const out: ItemSeed[] = [];
+  for (const base of common) {
+    if (!ARMOR_SLOTS.includes(base.slot)) continue;
+    const key = base.key.replace("_COMMON", "_LEGENDARY");
+    const cls =
+      key.includes("_warrior_") ? "warrior" : key.includes("_ranger_") ? "ranger" : key.includes("_mage_") ? "mage" : "neutral";
+    const [prefix] = base.name.split(" ");
+    const legendaryNamePrefix = cls === "warrior" ? "Bulwark" : cls === "ranger" ? "Shadowstep" : "Arcanist";
+    const legendaryName = `${legendaryNamePrefix} ${base.name}`;
+    out.push({
+      key,
+      name: legendaryName,
+      emoji: base.emoji,
+      slot: base.slot,
+      rarity: "LEGENDARY",
+      attack: Math.max(0, Math.floor(base.attack * 1.75) + (cls === "mage" || cls === "ranger" ? 1 : 0)),
+      defense: Math.max(0, Math.floor(base.defense * 1.6) + (cls === "warrior" ? 2 : cls === "ranger" ? 1 : 0)),
+      hp: Math.max(0, Math.floor(base.hp * 1.7) + (cls === "warrior" ? 4 : cls === "ranger" ? 2 : 1)),
+      speed: Math.max(0, Math.floor(base.speed * 1.5) + (cls === "ranger" ? 1 : 0)),
+      value: Math.floor(base.value * 4.2),
+      requiredLevel: (base.requiredLevel ?? 1) + 4,
+      requiredStrength: Math.max(0, (base.requiredStrength ?? 0) + (cls === "warrior" ? 2 : 0)),
+      requiredConstitution: Math.max(0, (base.requiredConstitution ?? 0) + (cls === "warrior" ? 2 : 1)),
+      requiredIntelligence: Math.max(0, (base.requiredIntelligence ?? 0) + (cls === "mage" ? 2 : 0)),
+      requiredDexterity: Math.max(0, (base.requiredDexterity ?? 0) + (cls === "ranger" ? 2 : 0)),
+      description: `Legendary ${prefix.toLowerCase()} armor — ${cls} lineage, apex-forged.`,
+    });
+  }
+  return out;
+}
+
 function buildRegionalWeaponItems(): ItemSeed[] {
   const out: ItemSeed[] = [];
+  const daggerMeta: Record<number, Record<WeaponDropRarity, { name: string; description: string }>> = {
+    0: {
+      COMMON: { name: "Back-Alley Shiv", description: "Rag-wrapped grip, quick in close quarters." },
+      UNCOMMON: { name: "Gutter Dirk", description: "Narrow blade made for fast hands." },
+      RARE: { name: "Sewer Fang", description: "Twin-edged point that finds soft gaps." },
+      LEGENDARY: { name: "Nightmarket Stiletto", description: "A whisper-thin legendary blade from outlaw stalls." },
+    },
+    1: {
+      COMMON: { name: "Thornknife", description: "Forest-cut steel, surprisingly balanced." },
+      UNCOMMON: { name: "Wolftooth Dirk", description: "Hooks and serrations for savage flurries." },
+      RARE: { name: "Briarfang Twinblade", description: "Leaf-quick cuts with predatory bite." },
+      LEGENDARY: { name: "Moonshade Stiletto", description: "Its edge vanishes in moonlit motion." },
+    },
+    2: {
+      COMMON: { name: "Ruin Fang", description: "Dust-pitted but eager for blood." },
+      UNCOMMON: { name: "Crypt Knife", description: "Short, cruel, and hard to track." },
+      RARE: { name: "Tombstep Dagger", description: "Built for silent work between collapsed halls." },
+      LEGENDARY: { name: "Regalia Needle", description: "An imperial assassin's relic point." },
+    },
+    3: {
+      COMMON: { name: "Murk Shiv", description: "Darkened steel that drinks catacomb mist." },
+      UNCOMMON: { name: "Wraithfang Dirk", description: "The tip seems a breath ahead of your hand." },
+      RARE: { name: "Graveshade Twinblade", description: "Rapid cuts leave ghostly afterimages." },
+      LEGENDARY: { name: "Catacomb Heartpiercer", description: "A fabled dagger that ends duels in one breath." },
+    },
+  };
   for (let tier = 0; tier <= 3; tier++) {
     for (const cls of WEAPON_CLASS_KEYS) {
       for (const rarity of WEAPON_DROP_RARITIES) {
@@ -411,6 +485,47 @@ function buildRegionalWeaponItems(): ItemSeed[] {
         description: `An apex-grade relic from ${godlyMeta.name}. Super rare boss-tier drop.`,
       });
     }
+    for (const rarity of WEAPON_DROP_RARITIES) {
+      const base = REGIONAL_WEAPON_STATS[tier].ranger[rarity];
+      const meta = daggerMeta[tier][rarity];
+      out.push({
+        key: regionalDaggerItemKey(tier, rarity),
+        name: meta.name,
+        emoji: "🗡️",
+        slot: "WEAPON",
+        rarity,
+        attack: Math.max(1, base.attack - 1),
+        defense: Math.max(0, base.defense),
+        hp: Math.max(0, base.hp),
+        speed: base.speed + 1,
+        value: Math.max(8, Math.floor(base.value * 0.98)),
+        requiredLevel: base.requiredLevel,
+        requiredStrength: Math.max(0, (base.requiredStrength ?? 0) - 1),
+        requiredConstitution: base.requiredConstitution,
+        requiredIntelligence: 0,
+        requiredDexterity: Math.max(1, (base.requiredDexterity ?? 0) + 1),
+        description: meta.description,
+      });
+    }
+    const godlyBase = REGIONAL_WEAPON_STATS[tier].ranger.LEGENDARY;
+    out.push({
+      key: regionalGodlyDaggerItemKey(tier),
+      name: `Godly ${daggerMeta[tier].LEGENDARY.name}`,
+      emoji: "🗡️",
+      slot: "WEAPON",
+      rarity: "GODLY",
+      attack: Math.max(1, Math.floor((godlyBase.attack - 1) * 1.25) + 2),
+      defense: Math.floor(godlyBase.defense * 1.15) + 1,
+      hp: Math.floor(godlyBase.hp * 1.25) + 2,
+      speed: Math.floor((godlyBase.speed + 1) * 1.2) + 1,
+      value: Math.floor(godlyBase.value * 2.1),
+      requiredLevel: (godlyBase.requiredLevel ?? 1) + 2,
+      requiredStrength: Math.max(0, (godlyBase.requiredStrength ?? 0) + 1),
+      requiredConstitution: Math.max(0, (godlyBase.requiredConstitution ?? 0) + 1),
+      requiredIntelligence: 0,
+      requiredDexterity: Math.max(1, (godlyBase.requiredDexterity ?? 0) + 3),
+      description: "A godly assassin relic — speed and precision above all else.",
+    });
   }
   return out;
 }
@@ -423,7 +538,15 @@ const REGIONAL_WEAPON_DROP_P: Record<WeaponDropRarity, number> = {
   LEGENDARY: 0.005,
 };
 const REGIONAL_GODLY_WEAPON_DROP_P = 0.0005;
+const REGIONAL_DAGGER_DROP_P: Record<WeaponDropRarity, number> = {
+  COMMON: 0.03,
+  UNCOMMON: 0.02,
+  RARE: 0.012,
+  LEGENDARY: 0.0045,
+};
+const REGIONAL_GODLY_DAGGER_DROP_P = 0.00045;
 const REGIONAL_COMMON_APPAREL_DROP_P = 0.006;
+const REGIONAL_LEGENDARY_ARMOR_DROP_P = 0.0009;
 const BOSS_WEAPON_DROP_P: Record<WeaponDropRarity, number> = {
   COMMON: REGIONAL_WEAPON_DROP_P.COMMON,
   UNCOMMON: REGIONAL_WEAPON_DROP_P.UNCOMMON,
@@ -431,6 +554,14 @@ const BOSS_WEAPON_DROP_P: Record<WeaponDropRarity, number> = {
   LEGENDARY: 0.028,
 };
 const BOSS_GODLY_WEAPON_DROP_P = 0.004;
+const BOSS_DAGGER_DROP_P: Record<WeaponDropRarity, number> = {
+  COMMON: REGIONAL_DAGGER_DROP_P.COMMON,
+  UNCOMMON: REGIONAL_DAGGER_DROP_P.UNCOMMON,
+  RARE: REGIONAL_DAGGER_DROP_P.RARE,
+  LEGENDARY: 0.024,
+};
+const BOSS_GODLY_DAGGER_DROP_P = 0.0035;
+const BOSS_LEGENDARY_ARMOR_DROP_P = 0.008;
 
 function pushRegionalWeaponDrops(
   drops: Array<{ enemyId: string; itemKey: string; chance: number }>,
@@ -455,6 +586,27 @@ function pushRegionalWeaponDrops(
   }
 }
 
+function pushRegionalDaggerDrops(
+  drops: Array<{ enemyId: string; itemKey: string; chance: number }>,
+  enemyIds: string[],
+  tier: number,
+) {
+  for (const enemyId of enemyIds) {
+    for (const rarity of WEAPON_DROP_RARITIES) {
+      drops.push({
+        enemyId,
+        itemKey: regionalDaggerItemKey(tier, rarity),
+        chance: REGIONAL_DAGGER_DROP_P[rarity],
+      });
+    }
+    drops.push({
+      enemyId,
+      itemKey: regionalGodlyDaggerItemKey(tier),
+      chance: REGIONAL_GODLY_DAGGER_DROP_P,
+    });
+  }
+}
+
 function pushRegionalCommonApparelDrops(
   drops: Array<{ enemyId: string; itemKey: string; chance: number }>,
   enemyIds: string[],
@@ -467,6 +619,24 @@ function pushRegionalCommonApparelDrops(
           enemyId,
           itemKey: `loot_reg${tier}_${cls}_${slot.toLowerCase()}_COMMON`,
           chance: REGIONAL_COMMON_APPAREL_DROP_P,
+        });
+      }
+    }
+  }
+}
+
+function pushRegionalLegendaryArmorDrops(
+  drops: Array<{ enemyId: string; itemKey: string; chance: number }>,
+  enemyIds: string[],
+  tier: number,
+) {
+  for (const enemyId of enemyIds) {
+    for (const cls of WEAPON_CLASS_KEYS) {
+      for (const slot of ARMOR_SLOTS) {
+        drops.push({
+          enemyId,
+          itemKey: `loot_reg${tier}_${cls}_${slot.toLowerCase()}_LEGENDARY`,
+          chance: REGIONAL_LEGENDARY_ARMOR_DROP_P,
         });
       }
     }
@@ -492,6 +662,41 @@ function pushBossWeaponDrops(
       itemKey: regionalGodlyWeaponItemKey(tier, cls),
       chance: BOSS_GODLY_WEAPON_DROP_P,
     });
+  }
+}
+
+function pushBossDaggerDrops(
+  drops: Array<{ enemyId: string; itemKey: string; chance: number }>,
+  enemyId: string,
+  tier: number,
+) {
+  for (const rarity of WEAPON_DROP_RARITIES) {
+    drops.push({
+      enemyId,
+      itemKey: regionalDaggerItemKey(tier, rarity),
+      chance: BOSS_DAGGER_DROP_P[rarity],
+    });
+  }
+  drops.push({
+    enemyId,
+    itemKey: regionalGodlyDaggerItemKey(tier),
+    chance: BOSS_GODLY_DAGGER_DROP_P,
+  });
+}
+
+function pushBossLegendaryArmorDrops(
+  drops: Array<{ enemyId: string; itemKey: string; chance: number }>,
+  enemyId: string,
+  tier: number,
+) {
+  for (const cls of WEAPON_CLASS_KEYS) {
+    for (const slot of ARMOR_SLOTS) {
+      drops.push({
+        enemyId,
+        itemKey: `loot_reg${tier}_${cls}_${slot.toLowerCase()}_LEGENDARY`,
+        chance: BOSS_LEGENDARY_ARMOR_DROP_P,
+      });
+    }
   }
 }
 
@@ -711,7 +916,7 @@ async function main() {
     },
   ];
 
-  const items = [...baseItems, ...buildRegionalWeaponItems(), ...buildRegionalCommonApparel()];
+  const items = [...baseItems, ...buildRegionalWeaponItems(), ...buildRegionalCommonApparel(), ...buildRegionalLegendaryArmor()];
 
   for (const item of items) {
     const reqLvl = item.requiredLevel ?? 1;
@@ -936,6 +1141,138 @@ async function main() {
       isAdventureMiniBoss: true,
     },
   });
+
+  /** Async guild bosses (Phase 4): stats tuned for raid slices; not spawned in adventure routes. */
+  const guildBossTemplate = {
+    regionId: town.id,
+    isElite: false,
+    isAdventureMiniBoss: false,
+    isDungeonBoss: true,
+    xpReward: 0,
+    goldMin: 0,
+    goldMax: 0,
+  } as const;
+  await upsertEnemyWithDifficulty({
+    where: { key: "guild_boss_sewer_rat_king" },
+    update: {
+      name: "Sewer Rat King",
+      emoji: "👑",
+      level: 4,
+      hp: 120,
+      attack: 18,
+      defense: 12,
+      speed: 10,
+      ...guildBossTemplate,
+    },
+    create: {
+      key: "guild_boss_sewer_rat_king",
+      name: "Sewer Rat King",
+      emoji: "👑",
+      level: 4,
+      hp: 120,
+      attack: 18,
+      defense: 12,
+      speed: 10,
+      ...guildBossTemplate,
+    },
+  });
+  await upsertEnemyWithDifficulty({
+    where: { key: "guild_boss_gravebound_ogre" },
+    update: {
+      name: "Gravebound Ogre",
+      emoji: "💀",
+      level: 7,
+      hp: 220,
+      attack: 28,
+      defense: 18,
+      speed: 8,
+      ...guildBossTemplate,
+    },
+    create: {
+      key: "guild_boss_gravebound_ogre",
+      name: "Gravebound Ogre",
+      emoji: "💀",
+      level: 7,
+      hp: 220,
+      attack: 28,
+      defense: 18,
+      speed: 8,
+      ...guildBossTemplate,
+    },
+  });
+  await upsertEnemyWithDifficulty({
+    where: { key: "guild_boss_ancient_warden" },
+    update: {
+      name: "Ancient Warden",
+      emoji: "🗿",
+      level: 10,
+      hp: 340,
+      attack: 36,
+      defense: 28,
+      speed: 10,
+      ...guildBossTemplate,
+    },
+    create: {
+      key: "guild_boss_ancient_warden",
+      name: "Ancient Warden",
+      emoji: "🗿",
+      level: 10,
+      hp: 340,
+      attack: 36,
+      defense: 28,
+      speed: 10,
+      ...guildBossTemplate,
+    },
+  });
+  await upsertEnemyWithDifficulty({
+    where: { key: "guild_boss_ashen_drake" },
+    update: {
+      name: "Ashen Drake",
+      emoji: "🐉",
+      level: 14,
+      hp: 480,
+      attack: 44,
+      defense: 32,
+      speed: 14,
+      ...guildBossTemplate,
+    },
+    create: {
+      key: "guild_boss_ashen_drake",
+      name: "Ashen Drake",
+      emoji: "🐉",
+      level: 14,
+      hp: 480,
+      attack: 44,
+      defense: 32,
+      speed: 14,
+      ...guildBossTemplate,
+    },
+  });
+  await upsertEnemyWithDifficulty({
+    where: { key: "guild_boss_duskforged_titan" },
+    update: {
+      name: "Duskforged Titan",
+      emoji: "⚒️",
+      level: 18,
+      hp: 620,
+      attack: 52,
+      defense: 40,
+      speed: 12,
+      ...guildBossTemplate,
+    },
+    create: {
+      key: "guild_boss_duskforged_titan",
+      name: "Duskforged Titan",
+      emoji: "⚒️",
+      level: 18,
+      hp: 620,
+      attack: 52,
+      defense: 40,
+      speed: 12,
+      ...guildBossTemplate,
+    },
+  });
+
   const wolf = await upsertEnemyWithDifficulty({
     where: { key: "dire_wolf" },
     update: { name: "Dire Wolf", emoji: "🐺", level: 5, hp: 110, attack: 22, defense: 13, speed: 10, xpReward: 78, goldMin: 14, goldMax: 28, regionId: forest.id, isElite: false },
@@ -1332,16 +1669,32 @@ async function main() {
   pushRegionalWeaponDrops(dropMap, [wolf.id, alpha.id, forestEnt.id], 1);
   pushRegionalWeaponDrops(dropMap, [jackal.id, imp.id, revenant.id, ruinsColossus.id], 2);
   pushRegionalWeaponDrops(dropMap, [wraith.id, boneKnight.id, warden.id], 3);
+  pushRegionalDaggerDrops(dropMap, [rat.id, plague.id, ditch.id, gutter.id, snail.id, fencer.id], 0);
+  pushRegionalDaggerDrops(dropMap, [wolf.id, alpha.id, forestEnt.id], 1);
+  pushRegionalDaggerDrops(dropMap, [jackal.id, imp.id, revenant.id, ruinsColossus.id], 2);
+  pushRegionalDaggerDrops(dropMap, [wraith.id, boneKnight.id, warden.id], 3);
   pushRegionalCommonApparelDrops(dropMap, [rat.id, plague.id, ditch.id, gutter.id, snail.id, fencer.id], 0);
   pushRegionalCommonApparelDrops(dropMap, [wolf.id, alpha.id, forestEnt.id], 1);
+  pushRegionalLegendaryArmorDrops(dropMap, [rat.id, plague.id, ditch.id, gutter.id, snail.id, fencer.id], 0);
+  pushRegionalLegendaryArmorDrops(dropMap, [wolf.id, alpha.id, forestEnt.id], 1);
 
   // Bosses in each region receive higher legendary/godly weapon rates.
   pushBossWeaponDrops(dropMap, fencer.id, 0);
   pushBossWeaponDrops(dropMap, forestEnt.id, 1);
   pushBossWeaponDrops(dropMap, ruinsColossus.id, 2);
   pushBossWeaponDrops(dropMap, warden.id, 3);
+  pushBossDaggerDrops(dropMap, fencer.id, 0);
+  pushBossDaggerDrops(dropMap, forestEnt.id, 1);
+  pushBossDaggerDrops(dropMap, ruinsColossus.id, 2);
+  pushBossDaggerDrops(dropMap, warden.id, 3);
+  pushBossLegendaryArmorDrops(dropMap, fencer.id, 0);
+  pushBossLegendaryArmorDrops(dropMap, forestEnt.id, 1);
+  pushBossLegendaryArmorDrops(dropMap, ruinsColossus.id, 2);
+  pushBossLegendaryArmorDrops(dropMap, warden.id, 3);
   pushRegionalCommonApparelDrops(dropMap, [jackal.id, imp.id, revenant.id, ruinsColossus.id], 2);
   pushRegionalCommonApparelDrops(dropMap, [wraith.id, boneKnight.id, warden.id], 3);
+  pushRegionalLegendaryArmorDrops(dropMap, [jackal.id, imp.id, revenant.id, ruinsColossus.id], 2);
+  pushRegionalLegendaryArmorDrops(dropMap, [wraith.id, boneKnight.id, warden.id], 3);
 
   await prisma.lootTableEntry.deleteMany({});
   for (const drop of dropMap) {
@@ -1391,11 +1744,41 @@ async function main() {
   const potion = await prisma.item.findUnique({ where: { key: HEALTH_POTION_ITEM_KEY } });
   const testerChar = await prisma.character.findFirst({ where: { userId: user.id } });
   if (potion && testerChar) {
-    await prisma.inventoryItem.upsert({
-      where: { characterId_itemId: { characterId: testerChar.id, itemId: potion.id } },
-      update: { quantity: 3 },
-      create: { characterId: testerChar.id, itemId: potion.id, quantity: 3 },
+    const potionStack = await prisma.inventoryItem.findFirst({
+      where: {
+        characterId: testerChar.id,
+        itemId: potion.id,
+        forgeLevel: 0,
+        affixPrefix: null,
+        bonusLifeSteal: 0,
+        bonusCritChance: 0,
+        bonusSkillPower: 0,
+        bonusStrength: 0,
+        bonusConstitution: 0,
+        bonusIntelligence: 0,
+        bonusDexterity: 0,
+      },
     });
+    if (potionStack) {
+      await prisma.inventoryItem.update({ where: { id: potionStack.id }, data: { quantity: 3 } });
+    } else {
+      await prisma.inventoryItem.create({
+        data: {
+          characterId: testerChar.id,
+          itemId: potion.id,
+          quantity: 3,
+          forgeLevel: 0,
+          affixPrefix: null,
+          bonusLifeSteal: 0,
+          bonusCritChance: 0,
+          bonusSkillPower: 0,
+          bonusStrength: 0,
+          bonusConstitution: 0,
+          bonusIntelligence: 0,
+          bonusDexterity: 0,
+        },
+      });
+    }
   }
 }
 

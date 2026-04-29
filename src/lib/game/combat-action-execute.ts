@@ -1,9 +1,12 @@
 import { revalidatePath } from "next/cache";
 import type { Character, Prisma } from "@prisma/client";
 import { buildVictoryCharacterUpdate, rollDrops, rollGoldReward, xpForOutcome } from "@/lib/game/combat-rewards";
-import { encounterToTurnState, potionHealAmount, resolveCombatRound, rollEnemyIntent, runAutoBattle } from "@/lib/game/combat-turn";
+import { applyGuildBonusToCombatXp } from "@/lib/game/guild-progression";
+import { getGuildXpForUser } from "@/lib/game/guild-xp";
+import { resolveGuildBossEncounterEnd } from "@/lib/game/guild-boss-resolve";
+import { encounterToTurnState, nextEnemyStrikeStreak, potionHealAmount, resolveCombatRound, rollEnemyIntent, runAutoBattle } from "@/lib/game/combat-turn";
 import {
-  CLASS_SKILLS,
+  activeSkillForCharacter,
   HEALTH_POTION_ITEM_KEY,
   LEVEL_UP_ATTACK,
   LEVEL_UP_DEFENSE,
@@ -76,6 +79,7 @@ export type CombatActionSuccessBody =
       leveled: boolean;
       log: string[];
       potionCount: number;
+      guildBoss?: { appliedDamage: number; guildDefeated: boolean };
     }
   | {
       status: "ENDED";
@@ -88,6 +92,7 @@ export type CombatActionSuccessBody =
       log: string[];
       potionCount: number;
       leveled: boolean;
+      guildBoss?: { appliedDamage: number; guildDefeated: boolean };
     };
 
 export type CombatActionExecuteResult =
@@ -221,6 +226,7 @@ export async function executeCombatAction(
       enemyShortName: enemy.name,
       enemyLabel,
       startRound: encounter.round,
+      initialEnemyStrikeStreak: encounter.enemyStrikeStreak,
       initialPotionCount: potionStart,
       initialPotionCooldown: encounter.potionCooldownRemaining,
       potionCooldownAfterUse: POTION_COOLDOWN_AFTER_USE_TURNS,
@@ -269,6 +275,7 @@ export async function executeCombatAction(
         enemyShortName: enemy.name,
         enemyLabel,
         playerClass: character.class,
+        rogueSkill: character.rogueSkill,
         playerIntelligence: encounter.playerIntelligence,
       });
       state = res.state;
@@ -327,8 +334,9 @@ export async function executeCombatAction(
   const town = await prisma.region.findUnique({ where: { key: "town_outskirts" } });
 
   if (!victory && !defeat) {
-    const nextIntent = rollEnemyIntent(state.enemyHp, state.enemyMaxHp);
-    const skillMeta = CLASS_SKILLS[character.class];
+    const nextIntent = rollEnemyIntent(state.enemyHp, state.enemyMaxHp, state.enemyStrikeStreak);
+    const nextStrikeStreak = nextEnemyStrikeStreak(state.enemyStrikeStreak, nextIntent);
+    const skillMeta = activeSkillForCharacter(character.class, character.rogueSkill);
     const nextSkillCd =
       input.action === "AUTO"
         ? encounter.skillCooldownRemaining
@@ -347,6 +355,7 @@ export async function executeCombatAction(
       next: {
         round: state.round,
         enemyIntent: nextIntent,
+        enemyStrikeStreak: nextStrikeStreak,
         playerHp: state.playerHp,
         enemyHp: state.enemyHp,
         playerMana: state.playerMana,
@@ -354,6 +363,7 @@ export async function executeCombatAction(
         playerSkillPowerBonus: state.playerSkillPowerBonus,
         enemyPendingDamageMult: state.enemyPendingDamageMult,
         enemyPendingArmorVsPlayer: state.enemyPendingArmorVsPlayer,
+        playerInvulnerableTurns: state.playerInvulnerableTurns,
       },
       skillCooldownRemaining: nextSkillCd,
       potionCooldownRemaining: nextPotionCd,
@@ -394,11 +404,63 @@ export async function executeCombatAction(
   }
 
   if (victory) {
+    if (encounter.guildBossAttemptId) {
+      log.push(`★ Sortie complete — your guild drives the raid boss back (${enemyLabel}).`);
+      const gb = await prisma.$transaction(async (tx) => {
+        const r = await resolveGuildBossEncounterEnd(tx, {
+          characterId: character.id,
+          userId: character.userId,
+          encounterId: encounter.id,
+          guildBossAttemptId: encounter.guildBossAttemptId,
+          endEnemyHp: state.enemyHp,
+          outcome: "WIN",
+        });
+        await tx.character.update({
+          where: { id: character.id },
+          data: { hp: state.playerHp },
+        });
+        return r;
+      });
+      logCombatTelemetry({
+        mode: "GUILD_BOSS",
+        outcome: "VICTORY",
+        characterClass: character.class,
+        characterLevel: character.level,
+        enemyKey: enemy.key,
+        enemyLevel: enemy.level,
+        turns: state.round,
+        playerHpRemaining: state.playerHp,
+        log,
+      });
+      revalidatePath("/guild");
+      revalidatePath("/town", "layout");
+      revalidatePath("/adventure", "page");
+      const potionCount = await potionCountForCharacter(character.id);
+      return {
+        ok: true,
+        body: {
+          status: "ENDED",
+          outcome: "VICTORY",
+          round: state.round,
+          xpGained: 0,
+          goldGained: 0,
+          droppedItemIds: [],
+          droppedItems: [],
+          leveled: false,
+          log,
+          potionCount,
+          guildBoss: { appliedDamage: gb.appliedDamage, guildDefeated: gb.guildDefeated },
+        },
+      };
+    }
+
     log.push(`★ Victory! ${enemyLabel} falls — you live to fight again, still carrying your scrapes.`);
     const lootEntries = await prisma.lootTableEntry.findMany({ where: { enemyId: enemy.id }, include: { item: true } });
     const goldGained = rollGoldReward(enemy);
     const droppedItemIds = rollDrops(lootEntries);
-    const xpGained = xpForOutcome(enemy, true, character.level);
+    const baseXp = xpForOutcome(enemy, true, character.level);
+    const guildXpVal = await getGuildXpForUser(character.userId);
+    const { totalXp: xpGained } = applyGuildBonusToCombatXp(baseXp, guildXpVal);
     const char = await prisma.character.findUniqueOrThrow({ where: { id: character.id } });
     const { data: charUpdate, leveled } = buildVictoryCharacterUpdate(char, state.playerHp, xpGained, goldGained);
     const reg = await prisma.region.findUnique({ where: { id: char.regionId } });
@@ -471,9 +533,62 @@ export async function executeCombatAction(
     };
   }
 
+  if (encounter.guildBossAttemptId) {
+    log.push(`☠ You fall — your blows still counted toward the guild raid.`);
+    const gb = await prisma.$transaction(async (tx) => {
+      const r = await resolveGuildBossEncounterEnd(tx, {
+        characterId: character.id,
+        userId: character.userId,
+        encounterId: encounter.id,
+        guildBossAttemptId: encounter.guildBossAttemptId,
+        endEnemyHp: state.enemyHp,
+        outcome: "LOSS",
+      });
+      const finalHp = Math.max(1, Math.floor(character.maxHp * 0.35));
+      await tx.character.update({
+        where: { id: character.id },
+        data: { hp: finalHp },
+      });
+      return { ...r, finalHp };
+    });
+    logCombatTelemetry({
+      mode: "GUILD_BOSS",
+      outcome: "DEFEAT",
+      characterClass: character.class,
+      characterLevel: character.level,
+      enemyKey: enemy.key,
+      enemyLevel: enemy.level,
+      turns: state.round,
+      playerHpRemaining: 0,
+      log,
+    });
+    revalidatePath("/guild");
+    revalidatePath("/town", "layout");
+    revalidatePath("/adventure", "page");
+    const potionCount = await potionCountForCharacter(character.id);
+    return {
+      ok: true,
+      body: {
+        status: "ENDED",
+        outcome: "DEFEAT",
+        round: state.round,
+        xpGained: 0,
+        goldLost: 0,
+        finalHp: gb.finalHp,
+        returnedToTown: false,
+        log,
+        potionCount,
+        leveled: false,
+        guildBoss: { appliedDamage: gb.appliedDamage, guildDefeated: gb.guildDefeated },
+      },
+    };
+  }
+
   log.push(`☠ You go down — you're dragged back to town with barely enough strength to stand.`);
   const char = await prisma.character.findUniqueOrThrow({ where: { id: character.id } });
-  const xpGained = xpForOutcome(enemy, false, character.level);
+  const baseXp = xpForOutcome(enemy, false, character.level);
+  const guildXpVal = await getGuildXpForUser(character.userId);
+  const { totalXp: xpGained } = applyGuildBonusToCombatXp(baseXp, guildXpVal);
   const progression = applyXp(char.level, char.xp, xpGained);
   const leveledOnDefeat = progression.level > char.level;
 

@@ -6,7 +6,7 @@ import { normalizeForgeLevel } from "@/lib/game/item-display";
 import { formatItemStatBlock } from "@/lib/game/item-tooltip-text";
 import { formatItemStatRequirements } from "@/lib/game/item-requirements";
 import { rarityBadgeClass, rarityNameClass } from "@/lib/game/item-rarity-styles";
-import { isMagicWeapon } from "@/lib/game/weapon-classification";
+import { weaponType } from "@/lib/game/weapon-classification";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -82,19 +82,24 @@ function buildCombinedStats(params: {
     { forgeLevel: params.forgeLevel, rarity: params.item.rarity },
   );
   const offense = params.item.attack + forged.attack;
-  const magicWeapon = isMagicWeapon(params.item);
+  const wt = weaponType(params.item);
+  const magicWeapon = wt === "MAGIC";
+  const rangedWeapon = wt === "RANGED";
+  const daggerWeapon = wt === "DAGGER";
+  const dexFromDagger = daggerWeapon ? Math.ceil(offense * 0.6) : 0;
+  const strFromDagger = daggerWeapon ? offense - dexFromDagger : 0;
   return {
-    attack: magicWeapon ? 0 : offense,
+    attack: magicWeapon || rangedWeapon || daggerWeapon ? 0 : offense,
     defense: params.item.defense + forged.defense,
     hp: params.item.hp + forged.hp,
     speed: params.item.speed,
     lifeSteal: affix.bonusLifeSteal,
     critChance: affix.bonusCritChance,
     skillPower: affix.bonusSkillPower,
-    strength: affix.bonusStrength,
+    strength: affix.bonusStrength + strFromDagger,
     constitution: affix.bonusConstitution,
     intelligence: affix.bonusIntelligence + (magicWeapon ? offense : 0),
-    dexterity: affix.bonusDexterity,
+    dexterity: affix.bonusDexterity + (rangedWeapon ? offense : 0) + dexFromDagger,
   };
 }
 

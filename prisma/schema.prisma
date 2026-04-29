@@ -13,6 +13,12 @@ enum CharacterClass {
   ROGUE
 }
 
+enum RogueSkill {
+  VOLLEY
+  DAGGER_STORM
+  SHADOW
+}
+
 enum ItemSlot {
   WEAPON
   HELMET
@@ -56,6 +62,30 @@ enum FriendshipStatus {
   CANCELLED
 }
 
+enum GuildRole {
+  OWNER
+  OFFICER
+  MEMBER
+}
+
+enum GuildInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+enum GuildBossSeasonStatus {
+  ACTIVE
+  DEFEATED
+}
+
+enum GuildBossAttemptStatus {
+  PENDING
+  COMPLETED
+  VOIDED
+}
+
 model User {
   id           String      @id @default(cuid())
   username     String      @unique
@@ -65,8 +95,30 @@ model User {
   lastSeenAt   DateTime?
   sessions     Session[]
   characters   Character[]
+  chatMessages ChatMessage[]
   friendshipsRequested Friendship[] @relation("FriendshipRequester")
   friendshipsReceived  Friendship[] @relation("FriendshipAddressee")
+  guildOwned      Guild[]            @relation("GuildOwner")
+  guildMembership GuildMember[]
+  guildInvitesSent GuildInvite[]     @relation("GuildInviteInviter")
+  guildInvitesReceived GuildInvite[] @relation("GuildInvitee")
+  guildDonations  GuildDonation[]
+  guildChatMessages GuildChatMessage[]
+  guildBossAttempts      GuildBossAttempt[]
+  guildBossContributions GuildBossContribution[]
+  guildBossRewardClaims  GuildBossRewardClaim[]
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  channel   String   @default("world")
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  username  String
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([channel, createdAt])
 }
 
 model Friendship {
@@ -82,6 +134,151 @@ model Friendship {
   @@unique([requesterId, addresseeId])
   @@index([addresseeId, status])
   @@index([requesterId, status])
+}
+
+model Guild {
+  id          String    @id @default(cuid())
+  emoji       String    @default("🛡️")
+  /** Total guild progression XP (donations and future sources). Level is derived in code. */
+  xp          Int       @default(0)
+  name        String    @unique
+  description String    @default("")
+  ownerId     String
+  owner       User      @relation("GuildOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members     GuildMember[]
+  invites     GuildInvite[]
+  donations   GuildDonation[]
+  chatMessages GuildChatMessage[]
+  bossSeasons GuildBossSeason[]
+  guildBossAttempts      GuildBossAttempt[]
+  guildBossContributions GuildBossContribution[]
+  guildBossRewardClaims  GuildBossRewardClaim[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model GuildMember {
+  id       String    @id @default(cuid())
+  guildId  String
+  guild    Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId   String    @unique
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     GuildRole @default(MEMBER)
+  joinedAt DateTime  @default(now())
+
+  @@unique([guildId, userId])
+  @@index([guildId, role])
+}
+
+model GuildInvite {
+  id        String            @id @default(cuid())
+  guildId   String
+  guild     Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  inviterId String
+  inviter   User              @relation("GuildInviteInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  inviteeId String
+  invitee   User              @relation("GuildInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  status    GuildInviteStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([guildId, inviteeId])
+  @@index([inviteeId, status])
+  @@index([guildId, status])
+}
+
+model GuildDonation {
+  id        String   @id @default(cuid())
+  guildId   String
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Int
+  createdAt DateTime @default(now())
+
+  @@index([guildId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model GuildChatMessage {
+  id        String   @id @default(cuid())
+  guildId   String
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  username  String
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([guildId, createdAt])
+}
+
+model GuildBossSeason {
+  id                 String                @id @default(cuid())
+  guildId            String
+  guild              Guild                 @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  bossKey            String
+  maxHp              Int
+  currentHp          Int
+  memberCountAtStart Int
+  status             GuildBossSeasonStatus @default(ACTIVE)
+  startedAt          DateTime              @default(now())
+  defeatedAt         DateTime?
+  /** When an ACTIVE season becomes DEFEATED, set to now + cooldown; next boss spawns after this time (per guild). */
+  nextSpawnAt        DateTime?
+  attempts           GuildBossAttempt[]
+  contributions      GuildBossContribution[]
+  rewardClaims       GuildBossRewardClaim[]
+
+  @@index([guildId, status])
+}
+
+model GuildBossAttempt {
+  id        String                @id @default(cuid())
+  userId    String
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guildId   String
+  guild     Guild                 @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  seasonId  String
+  season    GuildBossSeason       @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  bossKey   String
+  status    GuildBossAttemptStatus @default(PENDING)
+  damageDealt Int                 @default(0)
+  completedAt DateTime?
+  soloCombatEncounter SoloCombatEncounter?
+
+  @@index([userId, guildId, status, completedAt])
+  @@index([seasonId])
+}
+
+model GuildBossContribution {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guildId     String
+  guild       Guild           @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  seasonId    String
+  season      GuildBossSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  damageTotal Int             @default(0)
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([userId, seasonId])
+}
+
+model GuildBossRewardClaim {
+  id                     String          @id @default(cuid())
+  userId                 String
+  user                   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guildId                String
+  guild                  Guild           @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  seasonId               String
+  season                 GuildBossSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  participationClaimedAt DateTime?
+  /** @deprecated Legacy — superseded by raid chest gold; kept for history. */
+  clearClaimedAt         DateTime?
+  chestClaimedAt         DateTime?
+
+  @@unique([userId, seasonId])
 }
 
 model Session {
@@ -101,6 +298,7 @@ model Character {
   userId         String
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   class          CharacterClass
+  rogueSkill     RogueSkill           @default(VOLLEY)
   level          Int                  @default(1)
   xp             Int                  @default(0)
   hp             Int
@@ -176,6 +374,9 @@ model SoloCombatEncounter {
   character          Character        @relation(fields: [characterId], references: [id], onDelete: Cascade)
   enemyId            String
   enemy              Enemy            @relation(fields: [enemyId], references: [id])
+  /** When set, this fight is an async guild boss attempt (no solo XP/gold/drops). */
+  guildBossAttemptId String?          @unique
+  guildBossAttempt   GuildBossAttempt? @relation(fields: [guildBossAttemptId], references: [id], onDelete: SetNull)
   status             SoloCombatStatus @default(ACTIVE)
   playerHp           Int
   playerMaxHp        Int
@@ -190,11 +391,16 @@ model SoloCombatEncounter {
   enemySpeed         Int
   enemyCrit          Float            @default(0.04)
   enemyIntent        EnemyIntent      @default(ATTACK)
+  /** Consecutive offensive telegraphs (STRIKE/HEAVY_ATTACK), capped by roll rules. */
+  enemyStrikeStreak       Int              @default(0)
   round                    Int              @default(1)
   skillCooldownRemaining   Int              @default(0)
+  /** Remaining enemy actions that are negated by Shadow Veil. */
+  playerInvulnerableTurns  Int              @default(0)
   /** Manual potion: turns before another tonic (does not tick during AUTO). */
   potionCooldownRemaining  Int              @default(0)
   playerIntelligence       Int              @default(0)
+  playerDexterity          Int              @default(0)
   /** Fractional heal from damage dealt (0.05 = 5%). */
   playerLifeSteal          Float            @default(0)
   /** Multiplier bonus for skill attacks (0.2 = +20% skill power). */

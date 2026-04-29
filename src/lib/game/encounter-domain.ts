@@ -19,6 +19,7 @@ export type EncounterState = {
   encounterId: string;
   round: number;
   enemyIntent: EnemyIntent;
+  enemyStrikeStreak: number;
   player: ActorState;
   enemy: ActorState;
   playerMana: number;
@@ -27,6 +28,7 @@ export type EncounterState = {
   playerSkillPowerBonus: number;
   enemyPendingDamageMult: number;
   enemyPendingArmorVsPlayer: number;
+  playerInvulnerableTurns: number;
   // Multiplayer-ready placeholders; currently used as solo defaults.
   turnDeadlineAtMs?: number | null;
   defaultActionOnTimeout?: TurnActionKind | null;
@@ -51,6 +53,7 @@ export type ResolveSoloTurnThroughDomainInput = {
   next: {
     round: number;
     enemyIntent: EnemyIntent;
+    enemyStrikeStreak: number;
     playerHp: number;
     enemyHp: number;
     playerMana: number;
@@ -58,6 +61,7 @@ export type ResolveSoloTurnThroughDomainInput = {
     playerSkillPowerBonus: number;
     enemyPendingDamageMult: number;
     enemyPendingArmorVsPlayer: number;
+    playerInvulnerableTurns: number;
   };
 };
 
@@ -73,6 +77,7 @@ export type SoloEncounterRowLike = {
   enemyId: string;
   round: number;
   enemyIntent: EnemyIntent;
+  enemyStrikeStreak?: number | null;
   playerHp: number;
   playerMaxHp: number;
   playerAttack: number;
@@ -89,6 +94,7 @@ export type SoloEncounterRowLike = {
   enemyCrit: number;
   enemyPendingDamageMult?: number | null;
   enemyPendingArmorVsPlayer?: number | null;
+  playerInvulnerableTurns?: number | null;
 };
 
 export type SoloEncounterUpdatePatch = {
@@ -97,8 +103,10 @@ export type SoloEncounterUpdatePatch = {
   enemyHp: number;
   round: number;
   enemyIntent: EnemyIntent;
+  enemyStrikeStreak: number;
   enemyPendingDamageMult: number;
   enemyPendingArmorVsPlayer: number;
+  playerInvulnerableTurns: number;
   playerLifeSteal: number;
   playerSkillPowerBonus: number;
 };
@@ -114,6 +122,10 @@ export function soloEncounterRowToEncounterState(row: SoloEncounterRowLike): Enc
     encounterId: row.id,
     round: row.round,
     enemyIntent: row.enemyIntent,
+    enemyStrikeStreak:
+      row.enemyStrikeStreak != null && Number.isFinite(Number(row.enemyStrikeStreak))
+        ? Math.max(0, Math.floor(Number(row.enemyStrikeStreak)))
+        : 0,
     player: {
       actorId: row.characterId,
       actorType: "PLAYER",
@@ -148,6 +160,10 @@ export function soloEncounterRowToEncounterState(row: SoloEncounterRowLike): Enc
       row.enemyPendingArmorVsPlayer != null && Number.isFinite(Number(row.enemyPendingArmorVsPlayer))
         ? Math.max(0, Math.floor(Number(row.enemyPendingArmorVsPlayer)))
         : 0,
+    playerInvulnerableTurns:
+      row.playerInvulnerableTurns != null && Number.isFinite(Number(row.playerInvulnerableTurns))
+        ? Math.max(0, Math.floor(Number(row.playerInvulnerableTurns)))
+        : 0,
     turnDeadlineAtMs: null,
     defaultActionOnTimeout: null,
   };
@@ -160,8 +176,10 @@ export function encounterStateToSoloEncounterPatch(state: EncounterState): SoloE
     enemyHp: state.enemy.hp,
     round: state.round,
     enemyIntent: state.enemyIntent,
+    enemyStrikeStreak: state.enemyStrikeStreak,
     enemyPendingDamageMult: state.enemyPendingDamageMult,
     enemyPendingArmorVsPlayer: state.enemyPendingArmorVsPlayer,
+    playerInvulnerableTurns: state.playerInvulnerableTurns,
     playerLifeSteal: state.playerLifeSteal,
     playerSkillPowerBonus: state.playerSkillPowerBonus,
   };
@@ -177,6 +195,7 @@ export function resolveSoloTurnThroughDomain(input: ResolveSoloTurnThroughDomain
     ...baseEncounterState,
     round: input.next.round,
     enemyIntent: input.next.enemyIntent,
+    enemyStrikeStreak: input.next.enemyStrikeStreak,
     player: { ...baseEncounterState.player, hp: input.next.playerHp },
     enemy: { ...baseEncounterState.enemy, hp: input.next.enemyHp },
     playerMana: input.next.playerMana,
@@ -185,6 +204,7 @@ export function resolveSoloTurnThroughDomain(input: ResolveSoloTurnThroughDomain
     playerSkillPowerBonus: input.next.playerSkillPowerBonus,
     enemyPendingDamageMult: input.next.enemyPendingDamageMult,
     enemyPendingArmorVsPlayer: input.next.enemyPendingArmorVsPlayer,
+    playerInvulnerableTurns: input.next.playerInvulnerableTurns,
   };
   return encounterStateToSoloEncounterPatch(nextEncounterState);
 }

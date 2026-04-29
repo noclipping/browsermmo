@@ -31,7 +31,7 @@ export function GameTopBar({
   const showDebugReset = process.env.NODE_ENV === "development";
 
   return (
-    <div className="relative mb-8 mt-1">
+    <div className="relative z-50 mb-8 mt-1">
       <header className="flex min-h-11 items-center justify-end gap-2 rounded-xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 py-2 pr-2 pl-41 shadow-md backdrop-blur-[1px] sm:pr-3 sm:pl-52 md:pl-56 md:pr-4">
         <div className="flex min-w-0 max-w-full flex-nowrap items-center justify-end gap-x-2 sm:gap-x-3 md:gap-4">
           <Link
@@ -66,12 +66,12 @@ export function GameTopBar({
             </form>
           </div>
 
-          <details className="relative shrink-0 md:hidden">
+          <details className="relative z-50 shrink-0 md:hidden">
             <summary className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-white/20 bg-black/55 text-zinc-100 outline-offset-2 marker:hidden hover:border-white/35 hover:bg-black/70 [&::-webkit-details-marker]:hidden">
               <span className="sr-only">Account menu</span>
               <HamburgerIcon className="h-5 w-5 shrink-0 text-zinc-200" />
             </summary>
-            <div className="absolute right-0 top-[calc(100%+0.375rem)] z-40 min-w-46 rounded-xl border border-white/20 bg-linear-to-b from-zinc-950/98 to-black/98 p-2 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.85)] ring-1 ring-white/10 backdrop-blur-md">
+            <div className="absolute right-0 top-[calc(100%+0.375rem)] z-[70] min-w-46 rounded-xl border border-white/20 bg-linear-to-b from-zinc-950/98 to-black/98 p-2 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.85)] ring-1 ring-white/10 backdrop-blur-md">
               <div className="flex flex-col gap-2">
                 {showDebugReset ? (
                   <form action={debugResetCharacterAction} title="Level 1, base stats, town, 25 gold, 4 tonics, no gear or loot">

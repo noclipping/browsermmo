@@ -13,11 +13,15 @@ export function weaponType(item: WeaponLike): WeaponType {
   if (
     key.includes("staff") ||
     key.includes("rod") ||
+    key.includes("wand") ||
     key.includes("channel") ||
     key.includes("focus") ||
     name.includes("staff") ||
     name.includes("archstaff") ||
-    name.includes("rod")
+    name.includes("rod") ||
+    name.includes("wand") ||
+    name.includes("channel") ||
+    name.includes("focus")
   ) {
     return "MAGIC";
   }

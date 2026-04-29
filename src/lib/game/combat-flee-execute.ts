@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import type { Character, Prisma } from "@prisma/client";
-import { encounterToTurnState, resolveCombatRound, rollEnemyIntent } from "@/lib/game/combat-turn";
+import { encounterToTurnState, nextEnemyStrikeStreak, resolveCombatRound, rollEnemyIntent } from "@/lib/game/combat-turn";
 import {
   BASE_FLEE_CHANCE,
   DEX_FLEE_CHANCE_PER_POINT,
@@ -15,6 +15,9 @@ import { applyXp } from "@/lib/game/progression";
 import { rollOutskirtsBossInterval } from "@/lib/game/outskirts-boss";
 import { setOutskirtsBossCountersSql } from "@/lib/game/outskirts-sql";
 import { xpForOutcome } from "@/lib/game/combat-rewards";
+import { applyGuildBonusToCombatXp } from "@/lib/game/guild-progression";
+import { getGuildXpForUser } from "@/lib/game/guild-xp";
+import { resolveGuildBossEncounterEnd } from "@/lib/game/guild-boss-resolve";
 import { buildSoloEncounterUpdateData } from "@/lib/game/encounter-domain";
 import { logCombatTelemetry } from "@/lib/game/combat-telemetry";
 import { prisma } from "@/lib/prisma";
@@ -42,9 +45,46 @@ function asLog(value: unknown): string[] {
   return value.filter((x): x is string => typeof x === "string");
 }
 
-async function handleFleeDefeat(character: Character, encounter: EncounterWithEnemy, log: string[]) {
+async function handleFleeDefeat(character: Character, encounter: EncounterWithEnemy, log: string[], finalEnemyHp?: number) {
+  const endEnemyHp = finalEnemyHp ?? encounter.enemyHp;
+
+  if (encounter.guildBossAttemptId) {
+    await prisma.$transaction(async (tx) => {
+      await resolveGuildBossEncounterEnd(tx, {
+        characterId: character.id,
+        userId: character.userId,
+        encounterId: encounter.id,
+        guildBossAttemptId: encounter.guildBossAttemptId,
+        endEnemyHp,
+        outcome: "LOSS",
+      });
+      const finalHp = Math.max(1, Math.floor(character.maxHp * 0.35));
+      await tx.character.update({
+        where: { id: character.id },
+        data: { hp: finalHp },
+      });
+    });
+    logCombatTelemetry({
+      mode: "GUILD_BOSS",
+      outcome: "DEFEAT",
+      characterClass: character.class,
+      characterLevel: character.level,
+      enemyKey: encounter.enemy.key,
+      enemyLevel: encounter.enemy.level,
+      turns: encounter.round,
+      playerHpRemaining: 0,
+      log,
+    });
+    revalidatePath("/guild");
+    revalidatePath("/town", "layout");
+    revalidatePath("/adventure", "page");
+    return;
+  }
+
   const town = await prisma.region.findUnique({ where: { key: "town_outskirts" } });
-  const xpGained = xpForOutcome(encounter.enemy, false, character.level);
+  const baseXp = xpForOutcome(encounter.enemy, false, character.level);
+  const guildXpVal = await getGuildXpForUser(character.userId);
+  const { totalXp: xpGained } = applyGuildBonusToCombatXp(baseXp, guildXpVal);
   const progression = applyXp(character.level, character.xp, xpGained);
   const leveledOnDefeat = progression.level > character.level;
   const finalHp = leveledOnDefeat
@@ -121,7 +161,8 @@ export async function executeCombatFlee(character: Character, encounterId: strin
       enemyShortName: encounter.enemy.name,
       enemyLabel: `${encounter.enemy.emoji} ${encounter.enemy.name}`,
     });
-    const nextIntent = rollEnemyIntent(result.state.enemyHp, result.state.enemyMaxHp);
+    const nextIntent = rollEnemyIntent(result.state.enemyHp, result.state.enemyMaxHp, result.state.enemyStrikeStreak);
+    const nextStrikeStreak = nextEnemyStrikeStreak(result.state.enemyStrikeStreak, nextIntent);
     const nextRound = encounter.round + 1;
     const log = [
       ...(Array.isArray(encounter.log) ? (encounter.log.filter((x): x is string => typeof x === "string")) : []),
@@ -129,7 +170,12 @@ export async function executeCombatFlee(character: Character, encounterId: strin
       ...result.lines,
     ];
     if (result.state.playerHp <= 0) {
-      await handleFleeDefeat(character, encounter as EncounterWithEnemy, [...log, "☠ The failed getaway gets you killed."]);
+      await handleFleeDefeat(
+        character,
+        encounter as EncounterWithEnemy,
+        [...log, "☠ The failed getaway gets you killed."],
+        result.state.enemyHp,
+      );
       revalidatePath("/town", "layout");
       revalidatePath("/adventure", "page");
       return { ok: false, error: "Flee failed, and you were defeated.", httpStatus: 400 };
@@ -139,6 +185,7 @@ export async function executeCombatFlee(character: Character, encounterId: strin
       next: {
         round: nextRound,
         enemyIntent: nextIntent,
+        enemyStrikeStreak: nextStrikeStreak,
         playerHp: result.state.playerHp,
         enemyHp: result.state.enemyHp,
         playerMana: result.state.playerMana,
@@ -146,6 +193,7 @@ export async function executeCombatFlee(character: Character, encounterId: strin
         playerSkillPowerBonus: result.state.playerSkillPowerBonus,
         enemyPendingDamageMult: result.state.enemyPendingDamageMult,
         enemyPendingArmorVsPlayer: result.state.enemyPendingArmorVsPlayer,
+        playerInvulnerableTurns: result.state.playerInvulnerableTurns,
       },
       skillCooldownRemaining: Math.max(0, encounter.skillCooldownRemaining - 1),
       potionCooldownRemaining: Math.max(0, encounter.potionCooldownRemaining - 1),
@@ -170,6 +218,38 @@ export async function executeCombatFlee(character: Character, encounterId: strin
     revalidatePath("/town", "layout");
     revalidatePath("/adventure", "page");
     return { ok: false, error: "Flee failed. You are still locked in combat.", httpStatus: 400 };
+  }
+
+  if (encounter.guildBossAttemptId) {
+    await prisma.$transaction(async (tx) => {
+      await resolveGuildBossEncounterEnd(tx, {
+        characterId: character.id,
+        userId: character.userId,
+        encounterId: encounter.id,
+        guildBossAttemptId: encounter.guildBossAttemptId,
+        endEnemyHp: encounter.enemyHp,
+        outcome: "FLEE",
+      });
+      await tx.character.update({
+        where: { id: character.id },
+        data: { hp: Math.max(1, encounter.playerHp) },
+      });
+    });
+    logCombatTelemetry({
+      mode: "GUILD_BOSS",
+      outcome: "FLEE_SUCCESS",
+      characterClass: character.class,
+      characterLevel: character.level,
+      enemyKey: encounter.enemy.key,
+      enemyLevel: encounter.enemy.level,
+      turns: encounter.round,
+      playerHpRemaining: encounter.playerHp,
+      log: asLog(encounter.log),
+    });
+    revalidatePath("/guild");
+    revalidatePath("/town", "layout");
+    revalidatePath("/adventure", "page");
+    return { ok: true };
   }
 
   await prisma.$transaction(async (tx) => {

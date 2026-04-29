@@ -57,6 +57,17 @@ export default async function PublicProfilePage({ params }: PageProps) {
           id: true,
           createdAt: true,
           lastSeenAt: true,
+          guildMembership: {
+            select: {
+              role: true,
+              guild: {
+                select: {
+                  name: true,
+                  emoji: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -73,6 +84,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
   const shownLastSeen = character.user.lastSeenAt ?? character.updatedAt;
   const portrait = portraitForClass(character.class, character.portraitKey);
   const friendState = await getFriendProfileButtonState(prisma, user.id, character.user.id);
+  const viewedGuildMembership = character.user.guildMembership[0] ?? null;
 
   const panelClass =
     "rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 shadow-md backdrop-blur-[1px]";
@@ -141,6 +153,14 @@ export default async function PublicProfilePage({ params }: PageProps) {
                     Account created {new Date(character.user.createdAt).toLocaleDateString()} · Last active{" "}
                     {new Date(shownLastSeen).toLocaleString()}
                   </p>
+                  {viewedGuildMembership ? (
+                    <p className="mt-1 text-xs text-zinc-400">
+                      Guild {viewedGuildMembership.guild.emoji} {viewedGuildMembership.guild.name} ·{" "}
+                      {viewedGuildMembership.role}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-zinc-500">Guild None</p>
+                  )}
                   <PresenceIndicator lastSeenAt={character.user.lastSeenAt} />
                   {character.bio ? (
                     <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-300">{character.bio}</p>
@@ -209,7 +229,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
           <div className="hidden min-w-0 lg:block">
             <div className="lg:sticky lg:top-4 lg:mr-auto lg:w-[min(22rem,100%)]">
-              <WorldChatPanel />
+              <WorldChatPanel username={myCharacter.name} userId={user.id} />
             </div>
           </div>
         </div>
@@ -225,7 +245,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
               consumeTonicAction={consumeTonicOutsideCombatAction}
             />
           }
-          chatPanel={<WorldChatPanel compact />}
+          chatPanel={<WorldChatPanel compact username={myCharacter.name} userId={user.id} />}
         />
       </main>
     </div>

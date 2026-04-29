@@ -31,6 +31,7 @@ import {
 import { ItemHoverCard } from "@/components/item-hover-card";
 import { ShopGoldFxRoot, ShopTransactionForm } from "@/components/shop-gold-fx";
 import { ShopGearList } from "@/components/shop-gear-list";
+import { ShopQuantityBuy } from "@/components/shop-quantity-buy";
 import { GameNav } from "@/components/game-nav";
 import { GameTopBar } from "@/components/game-top-bar";
 import { MobileAdventureOverlays } from "@/components/mobile-adventure-overlays";
@@ -98,7 +99,6 @@ export default async function ShopPage() {
   const tonicCount = inventory
     .filter((e) => e.item.key === HEALTH_POTION_ITEM_KEY)
     .reduce((sum, row) => sum + row.quantity, 0);
-  const tonicFull = tonicCount >= MAX_POTIONS_IN_PACK;
 
   const equippedItemIds = new Set(equipment.map((e) => e.itemId).filter((id): id is string => !!id));
   const equippedBySlot: Partial<
@@ -209,29 +209,24 @@ export default async function ShopPage() {
                   <p className="mt-1 text-xs text-zinc-200">
                     Fast out-of-combat heal. Carry cap: {MAX_POTIONS_IN_PACK}.
                   </p>
-                  <ShopTransactionForm transactionAction={buyPotionAction} className="mt-3">
-                    <button
-                      type="submit"
-                      disabled={character.gold < tonicPrice || tonicFull}
-                      title={tonicFull ? `Pack holds at most ${MAX_POTIONS_IN_PACK} tonics.` : undefined}
-                      className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-semibold text-zinc-100 enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Buy tonic — {tonicPrice}g ({tonicCount}/{MAX_POTIONS_IN_PACK})
-                    </button>
-                  </ShopTransactionForm>
+                  <ShopQuantityBuy
+                    transactionAction={buyPotionAction}
+                    unitPrice={tonicPrice}
+                    playerGold={character.gold}
+                    label="tonic"
+                    currentCountLabel={`${tonicCount}/${MAX_POTIONS_IN_PACK}`}
+                    maxQuantity={Math.max(0, MAX_POTIONS_IN_PACK - tonicCount)}
+                  />
                 </div>
                 <div className="rounded-lg border border-white/20 bg-black/50 p-3">
                   <p className={marketTitleClass}>🪨 Smithing stone</p>
                   <p className="mt-1 text-xs text-zinc-200">Used at the forge to reinforce equipped gear tiers.</p>
-                  <ShopTransactionForm transactionAction={buySmithingStoneAction} className="mt-3">
-                    <button
-                      type="submit"
-                      disabled={character.gold < stonePrice}
-                      className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-semibold text-zinc-100 enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Buy smithing stone — {stonePrice}g
-                    </button>
-                  </ShopTransactionForm>
+                  <ShopQuantityBuy
+                    transactionAction={buySmithingStoneAction}
+                    unitPrice={stonePrice}
+                    playerGold={character.gold}
+                    label="smithing stone"
+                  />
                 </div>
               </div>
             </section>
@@ -326,7 +321,7 @@ export default async function ShopPage() {
           </ShopGoldFxRoot>
           <div className="hidden min-w-0 lg:block">
             <div className="lg:sticky lg:top-4 lg:mr-auto lg:w-[min(22rem,100%)]">
-              <WorldChatPanel />
+              <WorldChatPanel username={character.name} userId={user.id} />
             </div>
           </div>
         </div>
@@ -341,7 +336,7 @@ export default async function ShopPage() {
               consumeTonicAction={consumeTonicOutsideCombatAction}
             />
           }
-          chatPanel={<WorldChatPanel compact />}
+          chatPanel={<WorldChatPanel compact username={character.name} userId={user.id} />}
         />
       </main>
     </div>

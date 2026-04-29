@@ -41,7 +41,15 @@ export function buildCharacterStats(character: Character, equipment: Equipped[])
           acc.attack += totalAttackStat;
         }
       } else {
-        acc.attack += totalAttackStat;
+        // Non-weapon class gear uses attack pips as primary-stat bonuses:
+        // INT line -> intelligence, DEX line -> dexterity. Tank gear stays HP/DEF focused.
+        if (entry.item.requiredIntelligence > 0 && entry.item.requiredIntelligence >= entry.item.requiredDexterity) {
+          acc.intelligence += totalAttackStat;
+        } else if (entry.item.requiredDexterity > 0) {
+          acc.dexterity += totalAttackStat;
+        } else {
+          acc.attack += totalAttackStat;
+        }
       }
       acc.defense += entry.item.defense;
       acc.hp += entry.item.hp;
