@@ -269,7 +269,7 @@ export function ItemHoverCard({
         ? createPortal(
             <span
               ref={tooltipRef}
-              className="pointer-events-none fixed z-120 w-88 max-w-[min(22rem,calc(100vw-1rem))] rounded-lg border border-zinc-700 bg-zinc-950/98 p-3 text-left text-xs text-zinc-200 opacity-100 shadow-xl backdrop-blur-sm"
+              className="pointer-events-none fixed z-260 w-88 max-w-[min(22rem,calc(100vw-1rem))] rounded-lg border border-zinc-700 bg-zinc-950/98 p-3 text-left text-xs text-zinc-200 opacity-100 shadow-xl backdrop-blur-sm"
               style={{ top: tooltipStyle.top, left: tooltipStyle.left }}
               role="tooltip"
             >

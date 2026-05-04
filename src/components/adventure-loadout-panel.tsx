@@ -4,9 +4,11 @@ import { requiredXpForLevel } from "@/lib/game/progression";
 import { itemDisplayName } from "@/lib/game/item-display";
 import { characterMeetsItemStatRequirements, formatItemStatRequirements } from "@/lib/game/item-requirements";
 import { rarityNameClass } from "@/lib/game/item-rarity-styles";
+import { displayTitleForEquippedKey } from "@/lib/game/achievements";
 import { portraitForClass } from "@/lib/game/portraits";
 import type { Character, CharacterEquipment, InventoryItem, Item } from "@prisma/client";
 import { ItemHoverCard } from "@/components/item-hover-card";
+import { LoadoutGearPack } from "@/components/loadout-gear-pack";
 
 type EquipRow = CharacterEquipment & { item: Item | null };
 type InvRow = InventoryItem & { item: Item };
@@ -27,7 +29,7 @@ type Effective = {
   dexterity: number;
 };
 
-export function AdventureLoadoutPanel({
+export async function AdventureLoadoutPanel({
   character,
   equipment,
   inventory,
@@ -42,6 +44,7 @@ export function AdventureLoadoutPanel({
   combatLocked: boolean;
   consumeTonicAction?: () => Promise<void>;
 }) {
+  const equippedTitleLabel = await displayTitleForEquippedKey(character.equippedAchievementKey);
   const bySlot = new Map(equipment.map((e) => [e.slot, e]));
   const gearInv = inventory.filter((r) => r.item.slot !== "CONSUMABLE");
   const xpNeeded = requiredXpForLevel(character.level);
@@ -74,7 +77,10 @@ export function AdventureLoadoutPanel({
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-white">{character.name}</p>
+            <p className="min-w-0 truncate text-sm font-semibold text-white">{character.name}</p>
+            {equippedTitleLabel ? (
+              <p className="mt-0.5 min-w-0 truncate text-[10px] italic leading-tight text-zinc-500">{equippedTitleLabel}</p>
+            ) : null}
             <p className="mt-0.5 text-zinc-100">Lv {character.level}</p>
             <div className="mt-1">
               <p className="text-[11px] text-zinc-200">XP {character.xp}/{xpNeeded}</p>
@@ -183,68 +189,7 @@ export function AdventureLoadoutPanel({
       </div>
 
       {!combatLocked && gearInv.length > 0 ? (
-        <div>
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-300">Pack (gear)</h3>
-          <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto text-sm">
-            {gearInv.map((entry) => {
-              const canEquip =
-                character.level >= entry.item.requiredLevel && characterMeetsItemStatRequirements(character, entry.item);
-              const equippedSameSlot = bySlot.get(entry.item.slot);
-              const compareAgainst =
-                equippedSameSlot?.item && equippedSameSlot.item.id !== entry.item.id
-                  ? {
-                      item: equippedSameSlot.item,
-                      forgeLevel: equippedSameSlot.forgeLevel,
-                      affixPrefix: equippedSameSlot.affixPrefix,
-                      bonusLifeSteal: equippedSameSlot.bonusLifeSteal,
-                      bonusCritChance: equippedSameSlot.bonusCritChance,
-                      bonusSkillPower: equippedSameSlot.bonusSkillPower,
-                      bonusStrength: equippedSameSlot.bonusStrength,
-                      bonusConstitution: equippedSameSlot.bonusConstitution,
-                      bonusIntelligence: equippedSameSlot.bonusIntelligence,
-                      bonusDexterity: equippedSameSlot.bonusDexterity,
-                    }
-                  : null;
-              return (
-                <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/15 bg-black/50 px-2 py-2">
-                  <div className="min-w-0">
-                    <ItemHoverCard
-                      item={entry.item}
-                      forgeLevel={entry.forgeLevel}
-                      affixPrefix={entry.affixPrefix}
-                      bonusLifeSteal={entry.bonusLifeSteal}
-                      bonusCritChance={entry.bonusCritChance}
-                      bonusSkillPower={entry.bonusSkillPower}
-                      bonusStrength={entry.bonusStrength}
-                      bonusConstitution={entry.bonusConstitution}
-                      bonusIntelligence={entry.bonusIntelligence}
-                      bonusDexterity={entry.bonusDexterity}
-                      compareAgainst={compareAgainst}
-                    >
-                      <span className={`font-medium ${rarityNameClass(entry.item.rarity)}`}>
-                        {entry.item.emoji} {itemDisplayName(entry.item, entry.forgeLevel, entry.affixPrefix)}
-                      </span>
-                    </ItemHoverCard>
-                    <span className="text-zinc-300/90"> ×{entry.quantity}</span>
-                    {formatItemStatRequirements(entry.item) ? (
-                      <span className="mt-0.5 block text-[10px] text-amber-700/90">Req: {formatItemStatRequirements(entry.item)}</span>
-                    ) : null}
-                  </div>
-                  <form action={equipItemAction}>
-                    <input type="hidden" name="inventoryEntryId" value={entry.id} />
-                    <button
-                      type="submit"
-                      disabled={!canEquip}
-                      className="rounded border border-amber-800/60 px-2 py-1 text-[11px] font-semibold text-amber-200/90 enabled:hover:bg-amber-950/50 disabled:cursor-not-allowed disabled:opacity-35"
-                    >
-                      Equip
-                    </button>
-                  </form>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+        <LoadoutGearPack character={character} gearInv={gearInv} bySlot={bySlot} combatLocked={combatLocked} />
       ) : null}
     </aside>
   );

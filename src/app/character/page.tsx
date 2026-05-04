@@ -10,12 +10,13 @@ import {
 } from "@/app/actions/game";
 import { AdventureLoadoutPanel } from "@/components/adventure-loadout-panel";
 import { ADVENTURE_REGIONS } from "@/lib/game/adventure";
-import { activeSkillForCharacter, ROGUE_SKILLS } from "@/lib/game/constants";
+import { activeSkillForCharacter, CLASS_DISPLAY_NAME, ROGUE_SKILLS } from "@/lib/game/constants";
 import { requiredXpForLevel } from "@/lib/game/progression";
 import { GameNav } from "@/components/game-nav";
 import { GameTopBar } from "@/components/game-top-bar";
 import { CharacterPortraitPicker } from "@/components/character-portrait-picker";
 import { MobileAdventureOverlays } from "@/components/mobile-adventure-overlays";
+import { TreasuryFilters } from "@/components/treasury-filters";
 import { requireCharacter, requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { gearStatSummary, itemDisplayName } from "@/lib/game/item-display";
@@ -24,16 +25,69 @@ import { rarityNameClass } from "@/lib/game/item-rarity-styles";
 import { buildCharacterStats } from "@/lib/game/stats";
 import { ItemHoverCard } from "@/components/item-hover-card";
 import { WorldChatPanel } from "@/components/world-chat-panel";
+import { debugResetAllAchievementsAction } from "@/app/actions/achievements";
+import { isAchievementDebugResetEnabled } from "@/lib/achievement-debug";
 import { updateCharacterBioAction, updateCharacterPortraitAction } from "@/app/actions/character";
 import { CharacterBioEditor } from "@/components/character-bio-editor";
+import { AchievementToastPostActionDrain } from "@/components/achievement-toast-post-action-drain";
+import { CharacterAchievementsModal } from "@/components/character-achievements-modal";
+import { formatAchievementPlayerPercentLabel } from "@/lib/game/achievements";
+import { reevaluateMilestoneAchievements } from "@/lib/game/milestone-achievements";
 
 export const dynamic = "force-dynamic";
 
-export default async function CharacterPage() {
+const SLOT_FILTERS = ["ALL", "WEAPON", "HELMET", "CHEST", "GLOVES", "BOOTS", "RING", "AMULET", "CONSUMABLE"] as const;
+const RARITY_FILTERS = ["ALL", "COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "GODLY"] as const;
+const CLASS_FILTERS = ["ALL", "WARRIOR", "MAGE", "ROGUE"] as const;
+
+function pickFilter<T extends readonly string[]>(value: string | undefined, choices: T, fallback: T[number]): T[number] {
+  return choices.includes((value ?? fallback) as T[number]) ? ((value ?? fallback) as T[number]) : fallback;
+}
+
+function itemClassType(item: {
+  requiredStrength: number;
+  requiredIntelligence: number;
+  requiredDexterity: number;
+}): "WARRIOR" | "MAGE" | "ROGUE" {
+  const str = item.requiredStrength ?? 0;
+  const intl = item.requiredIntelligence ?? 0;
+  const dex = item.requiredDexterity ?? 0;
+  if (intl >= dex && intl >= str && intl > 0) return "MAGE";
+  if (dex >= intl && dex >= str && dex > 0) return "ROGUE";
+  return "WARRIOR";
+}
+
+type CharacterPageProps = {
+  searchParams?: Promise<{
+    cSlot?: string;
+    cRarity?: string;
+    cClass?: string;
+  }>;
+};
+
+export default async function CharacterPage({ searchParams }: CharacterPageProps) {
+  const params = searchParams ? await searchParams : undefined;
   const user = await requireUser();
   const character = await requireCharacter(user.id);
+  const showAchievementDebugReset = isAchievementDebugResetEnabled();
 
-  const [inventory, equipment, dungeon, currentRegion, townRegion, combatActive] = await Promise.all([
+  await prisma.$transaction(async (tx) => {
+    await reevaluateMilestoneAchievements(tx, character.id);
+  });
+
+  const [
+    inventory,
+    equipment,
+    dungeon,
+    currentRegion,
+    townRegion,
+    combatActive,
+    guildMembership,
+    achievementsCatalog,
+    characterAchievements,
+    totalCharacters,
+    achievementUnlockGroups,
+  ] = await Promise.all([
     prisma.inventoryItem.findMany({ where: { characterId: character.id }, include: { item: true }, orderBy: { createdAt: "desc" } }),
     prisma.characterEquipment.findMany({ where: { characterId: character.id }, include: { item: true } }),
     prisma.dungeon.findFirst({ where: { key: "mossy_cellar" }, include: { bossEnemy: true } }),
@@ -43,7 +97,50 @@ export default async function CharacterPage() {
       where: { characterId: character.id, status: "ACTIVE" },
       select: { id: true },
     }),
+    prisma.guildMember.findUnique({
+      where: { userId: user.id },
+      include: { guild: { select: { name: true, emoji: true } } },
+    }),
+    prisma.achievement.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.characterAchievement.findMany({
+      where: { characterId: character.id },
+      select: { achievementId: true },
+    }),
+    prisma.character.count(),
+    prisma.characterAchievement.groupBy({
+      by: ["achievementId"],
+      _count: { _all: true },
+    }),
   ]);
+
+  const unlockCountByAchievementId = new Map(
+    achievementUnlockGroups.map((g) => [g.achievementId, g._count._all]),
+  );
+  const unlockedAchievementIds = new Set(characterAchievements.map((a) => a.achievementId));
+  const achievementUnlockedCount = unlockedAchievementIds.size;
+  const achievementTotalCount = achievementsCatalog.length;
+  const achievementModalRows = achievementsCatalog.map((a) => ({
+    key: a.key,
+    name: a.name,
+    description: a.description,
+    icon: a.icon,
+    titleReward: a.titleReward,
+    category: a.category,
+    unlocked: unlockedAchievementIds.has(a.id),
+    equipped: character.equippedAchievementKey === a.key,
+    playerPercentLabel: formatAchievementPlayerPercentLabel(
+      unlockCountByAchievementId.get(a.id) ?? 0,
+      totalCharacters,
+    ),
+  }));
+  const equippedAchievement = character.equippedAchievementKey
+    ? achievementsCatalog.find((a) => a.key === character.equippedAchievementKey)
+    : null;
+  const equippedTitleValid =
+    equippedAchievement &&
+    unlockedAchievementIds.has(equippedAchievement.id) &&
+    equippedAchievement.titleReward?.trim();
+  const equippedTitleLabel = equippedTitleValid ? equippedAchievement.titleReward!.trim() : null;
 
   const regionKey = currentRegion?.key ?? "";
   if (!currentRegion || !ADVENTURE_REGIONS[regionKey]) redirect("/character/new");
@@ -58,6 +155,21 @@ export default async function CharacterPage() {
   const canAllocate = character.statPoints > 0;
   const inTownRegion = !!townRegion && character.regionId === townRegion.id;
   const combatLocked = !!combatActive;
+  const packSlot = pickFilter(params?.cSlot, SLOT_FILTERS, "ALL");
+  const packRarity = pickFilter(params?.cRarity, RARITY_FILTERS, "ALL");
+  const packClass = pickFilter(params?.cClass, CLASS_FILTERS, "ALL");
+  const filteredInventory = inventory.filter((entry) => {
+    if (packSlot !== "ALL" && entry.item.slot !== packSlot) return false;
+    if (packRarity !== "ALL" && entry.item.rarity !== packRarity) return false;
+    if (packClass !== "ALL" && itemClassType(entry.item) !== packClass) return false;
+    return true;
+  });
+
+  const glassPanel =
+    "rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 shadow-md backdrop-blur-[1px]";
+  const xpNeeded = requiredXpForLevel(character.level);
+  const headerChipClass =
+    "inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-black/35 px-2.5 py-1 text-[11px] text-zinc-200";
 
   return (
     <div className="relative isolate min-h-screen overflow-x-hidden bg-[#0c0a09]">
@@ -81,6 +193,7 @@ export default async function CharacterPage() {
       </div>
       <main className="relative z-10 w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
         <div className="mx-auto w-full max-w-5xl">
+          <AchievementToastPostActionDrain revision={character.updatedAt.toISOString()} />
           <GameTopBar characterName={character.name} characterLevel={character.level} />
           <GameNav
             inTownRegion={inTownRegion}
@@ -102,75 +215,249 @@ export default async function CharacterPage() {
               />
             </div>
           </div>
-          <div className="min-w-0 space-y-6">
-            <section className="grid gap-4 lg:grid-cols-[minmax(260px,320px)_1fr]">
-          <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Sheet</h2>
-            <div className="mt-3">
-              <CharacterPortraitPicker
-                characterClass={character.class}
-                portraitKey={character.portraitKey}
-                updatePortraitAction={updateCharacterPortraitAction}
-              />
-            </div>
-            <div className="mt-3 space-y-1 font-mono text-sm text-zinc-300">
-              <p>
-                Lv {character.level} · XP {character.xp}/{requiredXpForLevel(character.level)}
-              </p>
-              <p>
-                HP {character.hp}/{character.maxHp}{" "}
-                <span className="text-[11px] text-zinc-500">
-                  (combat max {effective.maxHp})
-                </span>
-              </p>
-              <p>
-                ATK {character.attack} · DEF {character.defense}
-              </p>
-              <p className="text-xs text-zinc-500">
-                Effective: Melee {effective.meleeAttack} · Ranged {effective.rangedAttack} · Magic {effective.magicAttack}
-              </p>
-              <p className="text-xs text-zinc-500">
-                DEF {effective.defense} · Mana {effective.maxMana} · Crit {(effective.critChance * 100).toFixed(1)}%
-              </p>
-              <p className="text-xs text-zinc-500">
-                Lifesteal {(effective.lifeSteal * 100).toFixed(1)}% · Skill power +{(effective.skillPowerBonus * 100).toFixed(1)}%
-              </p>
-              <p className="text-zinc-100">Gold {character.gold}</p>
-              <p className="pt-1 text-zinc-300">Unspent stat points: {character.statPoints}</p>
-            </div>
-            <div className="mt-4 space-y-2 border-t border-zinc-900 pt-3">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Core attributes</p>
-              {(
-                [
-                  { label: "STR", field: "STRENGTH" as const, value: character.strength },
-                  { label: "CON", field: "CONSTITUTION" as const, value: character.constitution },
-                  { label: "INT", field: "INTELLIGENCE" as const, value: character.intelligence },
-                  { label: "DEX", field: "DEXTERITY" as const, value: character.dexterity },
-                ] as const
-              ).map((row) => (
-                <div key={row.field} className="flex items-center justify-between gap-2 text-sm text-zinc-300">
-                  <span className="font-mono">
-                    {row.label} {row.value}
-                  </span>
-                  <form action={allocateStatAction}>
-                    <input type="hidden" name="stat" value={row.field} />
-                    <button
-                      type="submit"
-                      disabled={!canAllocate}
-                      className="h-7 w-7 rounded-lg border border-white/25 bg-black/55 text-sm font-bold text-zinc-100 hover:border-white/45 hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-35"
-                      title={canAllocate ? `Add 1 ${row.label}` : "No stat points"}
-                    >
-                      +
-                    </button>
-                  </form>
+          <div className="min-w-0 space-y-4">
+            <section className={`${glassPanel} p-4 md:p-5`}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">Character sheet</p>
+              <div className="mt-4 flex flex-col gap-6 md:flex-row md:items-start md:gap-8">
+                <div className="flex shrink-0 justify-center md:justify-start">
+                  <CharacterPortraitPicker
+                    characterClass={character.class}
+                    portraitKey={character.portraitKey}
+                    updatePortraitAction={updateCharacterPortraitAction}
+                    previewImgClassName="mx-auto h-36 w-36 rounded-lg border border-white/10 object-cover object-top bg-black/40 md:h-44 md:w-44"
+                  />
                 </div>
-              ))}
+                <div className="min-w-0 flex-1 space-y-4 text-center md:text-left">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <div className="min-w-0 space-y-0">
+                      <h1 className="font-serif text-3xl text-zinc-100 md:text-4xl">{character.name}</h1>
+                      {equippedTitleLabel ? (
+                        <p className="mt-0.5 text-[11px] italic leading-snug text-zinc-500 md:text-xs">{equippedTitleLabel}</p>
+                      ) : (
+                        <p className="mt-0.5 text-[11px] leading-snug text-zinc-500 md:text-xs">
+                          No title equipped · Open Achievements to choose one
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-start">
+                      <CharacterAchievementsModal
+                        rows={achievementModalRows}
+                        equippedLabel={equippedTitleLabel}
+                        unlockedCount={achievementUnlockedCount}
+                        totalCount={achievementTotalCount}
+                      />
+                      {showAchievementDebugReset ? (
+                        <form action={debugResetAllAchievementsAction} className="max-w-[11rem]">
+                          <button
+                            type="submit"
+                            className="w-full rounded-lg border border-red-500/35 bg-red-950/40 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-red-200/90 hover:border-red-400/50 hover:bg-red-950/55"
+                          >
+                            Debug: wipe achievements
+                          </button>
+                          <p className="mt-1 text-[9px] leading-tight text-red-400/70">
+                            Unlocks + milestone/chest/treasury counters. Level, gear, and guild can still re-grant feats.
+                          </p>
+                        </form>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-zinc-300">
+                      <span className="font-semibold text-zinc-200">{CLASS_DISPLAY_NAME[character.class]}</span>
+                      <span className="text-zinc-500"> · </span>
+                      <span>Level {character.level}</span>
+                    </p>
+                    <p className="text-sm text-zinc-400">
+                      {guildMembership ? (
+                        <>
+                          <span className="text-zinc-500">Guild </span>
+                          <span className="font-medium text-zinc-200">
+                            {guildMembership.guild.emoji} {guildMembership.guild.name}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-zinc-500">No guild</span>
+                      )}
+                      <span className="text-zinc-600"> · </span>
+                      <span>{currentRegion.name}</span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500">Public bio</p>
+                    <CharacterBioEditor
+                      initialBio={character.bio}
+                      updateBioAction={updateCharacterBioAction}
+                      variant="header"
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
+                    <span className={headerChipClass} title="Current / max HP">
+                      <span aria-hidden>❤️</span>
+                      <span className="text-zinc-500">HP</span>
+                      <span className="font-mono font-semibold tabular-nums text-zinc-100">
+                        {character.hp}/{character.maxHp}
+                      </span>
+                    </span>
+                    <span className={headerChipClass} title="Experience toward next level">
+                      <span aria-hidden>✨</span>
+                      <span className="text-zinc-500">XP</span>
+                      <span className="font-mono font-semibold tabular-nums text-zinc-100">
+                        {character.xp}/{xpNeeded}
+                      </span>
+                    </span>
+                    <span className={headerChipClass}>
+                      <span aria-hidden>🪙</span>
+                      <span className="text-zinc-500">Gold</span>
+                      <span className="font-mono font-semibold tabular-nums text-amber-200/95">{character.gold}</span>
+                    </span>
+                    <span className={headerChipClass}>
+                      <span aria-hidden>📊</span>
+                      <span className="text-zinc-500">Points</span>
+                      <span className="font-mono font-semibold tabular-nums text-violet-200/90">{character.statPoints}</span>
+                    </span>
+                    <span className={headerChipClass} title="Achievements unlocked / catalog">
+                      <span aria-hidden>🏆</span>
+                      <span className="font-mono font-semibold tabular-nums text-amber-200/90">
+                        {achievementUnlockedCount}/{achievementTotalCount}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className={`${glassPanel} p-3 md:p-4`}>
+              <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Character stats</h2>
+              <p className="mt-0.5 text-[11px] leading-snug text-zinc-500">Attributes and battle ratings.</p>
+
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {(
+                  [
+                    { label: "Strength", short: "STR", emoji: "💪", field: "STRENGTH" as const, value: character.strength },
+                    { label: "Constitution", short: "CON", emoji: "❤️", field: "CONSTITUTION" as const, value: character.constitution },
+                    { label: "Intelligence", short: "INT", emoji: "🔮", field: "INTELLIGENCE" as const, value: character.intelligence },
+                    { label: "Dexterity", short: "DEX", emoji: "🏹", field: "DEXTERITY" as const, value: character.dexterity },
+                  ] as const
+                ).map((row) => (
+                  <div
+                    key={row.field}
+                    className="flex items-center gap-2 rounded-lg border border-amber-900/30 bg-zinc-900/40 px-2.5 py-2 backdrop-blur-[1px] sm:gap-2.5"
+                  >
+                    <div className="flex w-10 shrink-0 flex-col items-start gap-px text-left">
+                      <span className="text-base leading-none" aria-hidden>
+                        {row.emoji}
+                      </span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">{row.short}</span>
+                      <span className="sr-only">{row.label}</span>
+                    </div>
+                    <p className="min-w-0 flex-1 text-center font-mono text-xl font-bold tabular-nums leading-none text-zinc-50 sm:text-[1.35rem]">
+                      {row.value}
+                    </p>
+                    {canAllocate ? (
+                      <form action={allocateStatAction} className="shrink-0">
+                        <input type="hidden" name="stat" value={row.field} />
+                        <button
+                          type="submit"
+                          className="flex h-8 w-8 items-center justify-center rounded-md border border-white/22 bg-black/55 text-sm font-bold text-zinc-100 hover:border-amber-500/45 hover:bg-black/75"
+                          title={`Add 1 to ${row.label}`}
+                        >
+                          +
+                        </button>
+                      </form>
+                    ) : (
+                      <span className="h-8 w-8 shrink-0" aria-hidden />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 border-t border-white/10 pt-3">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-amber-200/75">Battle ratings</h3>
+                <div className="mt-2 space-y-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {(
+                      [
+                        { label: "Melee attack", value: effective.meleeAttack },
+                        { label: "Ranged attack", value: effective.rangedAttack },
+                        { label: "Magic attack", value: effective.magicAttack },
+                        { label: "Defense", value: effective.defense },
+                      ] as const
+                    ).map((cell) => (
+                      <div
+                        key={cell.label}
+                        className="rounded-lg border border-white/8 bg-black/28 px-2 py-1.5"
+                      >
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">{cell.label}</p>
+                        <p className="mt-0.5 font-mono text-base font-semibold tabular-nums leading-none text-zinc-100">
+                          {cell.value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {(
+                      [
+                        { label: "Mana", value: effective.maxMana },
+                        { label: "Combat max HP", value: effective.maxHp },
+                        {
+                          label: "Crit chance",
+                          value: `${(effective.critChance * 100).toFixed(1)}%`,
+                        },
+                        {
+                          label: "Lifesteal",
+                          value: `${(effective.lifeSteal * 100).toFixed(1)}%`,
+                        },
+                      ] as const
+                    ).map((cell) => (
+                      <div
+                        key={cell.label}
+                        className="rounded-lg border border-white/8 bg-black/28 px-2 py-1.5"
+                      >
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">{cell.label}</p>
+                        <p className="mt-0.5 font-mono text-base font-semibold tabular-nums leading-none text-zinc-100">
+                          {cell.value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {(
+                      [
+                        {
+                          label: "Skill power",
+                          value: `+${(effective.skillPowerBonus * 100).toFixed(1)}%`,
+                        },
+                        { label: "Sheet ATK", value: character.attack, muted: true },
+                        { label: "Sheet DEF", value: character.defense, muted: true },
+                      ] as const
+                    ).map((cell) => (
+                      <div
+                        key={cell.label}
+                        className="rounded-lg border border-white/8 bg-black/28 px-2 py-1.5"
+                      >
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">{cell.label}</p>
+                        <p
+                          className={`mt-0.5 font-mono text-base font-semibold tabular-nums leading-none ${
+                            "muted" in cell && cell.muted ? "text-zinc-400" : "text-zinc-100"
+                          }`}
+                        >
+                          {cell.value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+          <article
+            className={`${glassPanel} relative overflow-hidden border-amber-900/35 p-4 shadow-[inset_0_1px_0_0_rgba(251,191,36,0.07)]`}
+          >
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-2 border-b border-amber-900/25 pb-2">
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-100/85">Class skill</h2>
+              <span className="text-[9px] font-semibold uppercase tracking-widest text-zinc-600">Combat ability</span>
             </div>
-          </article>
-          <div className="space-y-4">
-          <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Class skill</h2>
-            <p className="mt-2 text-lg font-semibold text-zinc-100">
+            <p className="text-lg font-semibold text-zinc-100">
               <span className="mr-2">{classSkill.emoji}</span>
               {classSkill.name}
               <span className="ml-2 text-sm font-normal text-zinc-500">({classSkill.cooldown}-turn cooldown, no mana)</span>
@@ -201,17 +488,7 @@ export default async function CharacterPage() {
               </form>
             ) : null}
           </article>
-          <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Public profile bio</h2>
-            <p className="mt-2 text-xs text-zinc-500">Always visible to everyone on your public profile.</p>
-            <div className="mt-3">
-              <CharacterBioEditor
-                initialBio={character.bio}
-                updateBioAction={updateCharacterBioAction}
-              />
-            </div>
-          </article>
-          <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
+          <article className={`${glassPanel} p-4`}>
             <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Equipment</h2>
             <ul className="mt-3 space-y-2 text-sm text-zinc-300">
               {equipment.map((entry) => (
@@ -260,14 +537,28 @@ export default async function CharacterPage() {
               ))}
             </ul>
           </article>
-          </div>
-            </section>
 
-            <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
+            <article className={`${glassPanel} p-4`}>
           <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Pack</h2>
+          <div className="mt-3">
+            <TreasuryFilters
+              prefix="c"
+              slot={packSlot}
+              rarity={packRarity}
+              classType={packClass}
+              slotOptions={SLOT_FILTERS}
+              rarityOptions={RARITY_FILTERS}
+              classOptions={CLASS_FILTERS}
+              labels={{
+                slot: "Pack type",
+                rarity: "Pack rarity",
+                classType: "Pack class type",
+              }}
+            />
+          </div>
           <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
-            {inventory.length ? (
-              inventory.map((entry) => {
+            {filteredInventory.length ? (
+              filteredInventory.map((entry) => {
                 const canEquip =
                   entry.item.slot !== "CONSUMABLE" &&
                   character.level >= entry.item.requiredLevel &&
@@ -344,13 +635,15 @@ export default async function CharacterPage() {
                 </div>
               );
               })
+            ) : inventory.length ? (
+              <p className="text-sm text-zinc-500">No items match your pack filters.</p>
             ) : (
               <p className="text-sm text-zinc-500">Empty pack. Win battles for loot.</p>
             )}
           </div>
             </article>
 
-            <article className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
+            <article className={`${glassPanel} p-4`}>
           <h2 className="text-[10px] font-bold uppercase tracking-widest text-white/70">Solo dungeon</h2>
           {dungeon ? (
             <p className="mt-2 text-sm text-zinc-400">

@@ -5,11 +5,16 @@ import {
   cancelGuildInviteAction,
   createGuildAction,
   declineGuildInviteAction,
+  demoteGuildOfficerToMemberAction,
   donateGuildGoldAction,
   inviteToGuildAction,
   kickGuildMemberAction,
   leaveGuildAction,
   postGuildChatMessageAction,
+  promoteGuildMemberToMemberAction,
+  promoteGuildMemberToOfficerAction,
+  transferGuildOwnershipAction,
+  updateGuildDescriptionAction,
   updateGuildEmojiAction,
 } from "@/app/actions/guild";
 import { consumeTonicOutsideCombatAction, returnToTownAction, returnToTownAndShopAction } from "@/app/actions/game";
@@ -27,7 +32,9 @@ import {
 import { countGuildBossAttemptsLast24h } from "@/lib/game/guild-boss-attempts";
 import { trySpawnNextGuildBossIfReady } from "@/lib/game/guild-boss-season";
 import { getGuildLevelProgress, getGuildXpBonusPercent } from "@/lib/game/guild-progression";
+import { asFormVoid } from "@/lib/as-form-void";
 import { portraitForClass } from "@/lib/game/portraits";
+import { canEditGuildBranding } from "@/lib/game/guild-rank";
 import { GUILD_SYMBOLS } from "@/lib/game/guild-symbols";
 import { buildCharacterStats } from "@/lib/game/stats";
 import { prisma } from "@/lib/prisma";
@@ -147,6 +154,7 @@ export default async function GuildPage() {
 
   const canManage = membership ? membership.role === "OWNER" || membership.role === "OFFICER" : false;
   const isOwner = membership?.role === "OWNER";
+  const canBrand = membership ? canEditGuildBranding(membership.role) : false;
   const donationGoldLifetime = donationGoldSumRow?._sum.amount ?? 0;
   const guildProgress = guildDetails ? getGuildLevelProgress(guildDetails.xp) : null;
   const combatXpBonusPercent = guildProgress ? getGuildXpBonusPercent(guildProgress.level) : 0;
@@ -253,8 +261,8 @@ export default async function GuildPage() {
                     Members {guildDetails.members.length} · Lifetime gold donated {donationGoldLifetime.toLocaleString()}g ·
                     Created {new Date(guildDetails.createdAt).toLocaleDateString()}
                   </p>
-                  {isOwner ? (
-                    <form action={updateGuildEmojiAction} className="mt-3 flex items-center gap-2">
+                  {canBrand ? (
+                    <form action={asFormVoid(updateGuildEmojiAction)} className="mt-3 flex items-center gap-2">
                       <select
                         name="emoji"
                         defaultValue={guildDetails.emoji}
@@ -275,6 +283,24 @@ export default async function GuildPage() {
                       </button>
                     </form>
                   ) : null}
+                  {canBrand ? (
+                    <form action={asFormVoid(updateGuildDescriptionAction)} className="mt-3 space-y-2">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Guild bio</label>
+                      <textarea
+                        name="description"
+                        defaultValue={guildDetails.description}
+                        maxLength={180}
+                        rows={3}
+                        className="w-full rounded-lg border border-white/20 bg-black/55 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500"
+                      />
+                      <button
+                        type="submit"
+                        className="rounded-lg border border-white/20 bg-black/55 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:border-white/35 hover:bg-black/70"
+                      >
+                        Save bio
+                      </button>
+                    </form>
+                  ) : null}
                 </>
               ) : (
                 <>
@@ -283,6 +309,19 @@ export default async function GuildPage() {
                 </>
               )}
             </section>
+
+            {membership && guildDetails && guildProgress ? (
+              <section className="rounded-2xl border border-amber-900/40 bg-zinc-950/45 bg-linear-to-b from-amber-950/15 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300/85">Guild treasury</p>
+                <p className="mt-1 text-xs text-zinc-500">Shared item bank — deposit pack gear and withdraw if you are at least Member rank.</p>
+                <Link
+                  href="/guild/treasury"
+                  className="mt-3 inline-flex rounded-lg border border-amber-800/50 bg-amber-950/25 px-4 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-900/30"
+                >
+                  Open treasury
+                </Link>
+              </section>
+            ) : null}
 
             {membership && guildDetails && guildProgress ? (
               <section className="rounded-2xl border border-rose-900/45 bg-zinc-950/45 bg-linear-to-b from-rose-950/20 via-black/78 to-black/95 p-5 shadow-md backdrop-blur-[1px]">
@@ -344,7 +383,7 @@ export default async function GuildPage() {
               <>
                 <section className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
                   <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Create guild</h2>
-                  <form action={createGuildAction} className="mt-3 space-y-2">
+                  <form action={asFormVoid(createGuildAction)} className="mt-3 space-y-2">
                     <input
                       name="name"
                       placeholder="Guild name (3-24)"
@@ -382,7 +421,7 @@ export default async function GuildPage() {
                               {inviterChar ? ` · Invited by ${inviterChar.name}` : ""}
                             </p>
                             <div className="mt-2 flex gap-2">
-                              <form action={acceptGuildInviteAction}>
+                              <form action={asFormVoid(acceptGuildInviteAction)}>
                                 <input type="hidden" name="inviteId" value={invite.id} />
                                 <button
                                   type="submit"
@@ -391,7 +430,7 @@ export default async function GuildPage() {
                                   Accept
                                 </button>
                               </form>
-                              <form action={declineGuildInviteAction}>
+                              <form action={asFormVoid(declineGuildInviteAction)}>
                                 <input type="hidden" name="inviteId" value={invite.id} />
                                 <button
                                   type="submit"
@@ -448,39 +487,105 @@ export default async function GuildPage() {
                               </p>
                             </div>
                           </div>
-                          {canKick ? (
-                            <form action={kickGuildMemberAction}>
-                              <input type="hidden" name="memberUserId" value={member.userId} />
-                              <button
-                                type="submit"
-                                className="rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-950/50"
-                              >
-                                Kick
-                              </button>
-                            </form>
-                          ) : null}
+                          <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
+                            {canManage && member.role === "INITIATE" ? (
+                              <form action={asFormVoid(promoteGuildMemberToMemberAction)}>
+                                <input type="hidden" name="targetUserId" value={member.userId} />
+                                <button
+                                  type="submit"
+                                  className="rounded-lg border border-emerald-900/50 bg-emerald-950/25 px-2 py-1 text-[11px] font-semibold text-emerald-100 hover:bg-emerald-950/40"
+                                >
+                                  Promote to Member
+                                </button>
+                              </form>
+                            ) : null}
+                            {isOwner && member.role === "MEMBER" ? (
+                              <form action={asFormVoid(promoteGuildMemberToOfficerAction)}>
+                                <input type="hidden" name="targetUserId" value={member.userId} />
+                                <button
+                                  type="submit"
+                                  className="rounded-lg border border-sky-900/50 bg-sky-950/25 px-2 py-1 text-[11px] font-semibold text-sky-100 hover:bg-sky-950/40"
+                                >
+                                  Promote to Officer
+                                </button>
+                              </form>
+                            ) : null}
+                            {isOwner && member.role === "OFFICER" ? (
+                              <form action={asFormVoid(demoteGuildOfficerToMemberAction)}>
+                                <input type="hidden" name="targetUserId" value={member.userId} />
+                                <button
+                                  type="submit"
+                                  className="rounded-lg border border-zinc-700 bg-black/40 px-2 py-1 text-[11px] font-semibold text-zinc-300 hover:bg-black/60"
+                                >
+                                  Demote to Member
+                                </button>
+                              </form>
+                            ) : null}
+                            {canKick ? (
+                              <form action={asFormVoid(kickGuildMemberAction)}>
+                                <input type="hidden" name="memberUserId" value={member.userId} />
+                                <button
+                                  type="submit"
+                                  className="rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-950/50"
+                                >
+                                  Kick
+                                </button>
+                              </form>
+                            ) : null}
+                          </div>
                         </li>
                       );
                     })}
                   </ul>
-                  {!isOwner ? (
-                    <form action={leaveGuildAction} className="mt-3">
-                      <button
-                        type="submit"
-                        className="rounded-lg border border-white/20 bg-black/55 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:border-white/35 hover:bg-black/70"
-                      >
-                        Leave guild
-                      </button>
+                  {isOwner ? (
+                    <form action={asFormVoid(transferGuildOwnershipAction)} className="mt-4 space-y-2 rounded-lg border border-zinc-800 bg-black/20 p-3">
+                      <p className="text-[11px] font-semibold text-zinc-400">Transfer leadership</p>
+                      <p className="text-[11px] text-zinc-600">Hand off owner before you leave, or use Leave — the next officer or member inherits automatically.</p>
+                      <div className="flex flex-wrap gap-2">
+                        <select
+                          name="targetUserId"
+                          required
+                          className="min-w-48 rounded-lg border border-white/20 bg-black/55 px-3 py-2 text-sm text-zinc-100"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>
+                            Choose member…
+                          </option>
+                          {guildDetails.members
+                            .filter((m) => m.userId !== user.id && m.role !== "OWNER")
+                            .map((m) => {
+                              const cn = m.user.characters[0]?.name ?? "Unknown";
+                              return (
+                                <option key={m.userId} value={m.userId}>
+                                  {cn} ({m.role})
+                                </option>
+                              );
+                            })}
+                        </select>
+                        <button
+                          type="submit"
+                          className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-900/35"
+                        >
+                          Transfer ownership
+                        </button>
+                      </div>
                     </form>
-                  ) : (
-                    <p className="mt-3 text-xs text-zinc-500">Owner transfer is not added yet, so owners cannot leave.</p>
-                  )}
+                  ) : null}
+
+                  <form action={asFormVoid(leaveGuildAction)} className="mt-3">
+                    <button
+                      type="submit"
+                      className="rounded-lg border border-white/20 bg-black/55 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:border-white/35 hover:bg-black/70"
+                    >
+                      {isOwner ? "Leave guild (succession)" : "Leave guild"}
+                    </button>
+                  </form>
                 </section>
 
                 {canManage ? (
                   <section className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
                     <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Invites</h2>
-                    <form action={inviteToGuildAction} className="mt-3 flex flex-wrap gap-2">
+                    <form action={asFormVoid(inviteToGuildAction)} className="mt-3 flex flex-wrap gap-2">
                       <input
                         name="characterName"
                         placeholder="Character name"
@@ -502,7 +607,7 @@ export default async function GuildPage() {
                               <p className="text-sm text-zinc-300">
                                 Pending: {inviteeChar?.name ?? "Unknown"}
                               </p>
-                              <form action={cancelGuildInviteAction}>
+                              <form action={asFormVoid(cancelGuildInviteAction)}>
                                 <input type="hidden" name="inviteId" value={invite.id} />
                                 <button
                                   type="submit"
@@ -525,7 +630,7 @@ export default async function GuildPage() {
                     Donations grant Guild XP (1 XP per gold). Guild Level increases combat XP and will unlock stronger guild
                     bosses later.
                   </p>
-                  <form action={donateGuildGoldAction} className="mt-3 flex flex-wrap items-center gap-2">
+                  <form action={asFormVoid(donateGuildGoldAction)} className="mt-3 flex flex-wrap items-center gap-2">
                     <input
                       name="amount"
                       type="number"
@@ -564,7 +669,7 @@ export default async function GuildPage() {
 
                 <section className="rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
                   <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Guild chat (async)</h2>
-                  <form action={postGuildChatMessageAction} className="mt-3 flex gap-2">
+                  <form action={asFormVoid(postGuildChatMessageAction)} className="mt-3 flex gap-2">
                     <input
                       name="text"
                       maxLength={300}

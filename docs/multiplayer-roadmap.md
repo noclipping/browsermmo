@@ -367,6 +367,88 @@ Deliver cooperative guild progression without scheduling constraints. **Guild Le
 
 ---
 
+## Phase 4.5: Guild treasury + daily login chest
+
+### Purpose
+
+Add shared guild item storage (treasury), **guild rank promotions** and **ownership rules** aligned with treasury access, officer-facing **guild branding** (bio + emoji), and a personal retention loop (consecutive daily login chests)—alongside Phase 4 guild boss work without requiring realtime.
+
+### Guild ranks, promotions, ownership, and officer branding
+
+- **Rank ladder:** **`INITIATE`** → **`MEMBER`** → **`OFFICER`**, with **`OWNER`** as guild leader (typically `Guild.ownerId` or equivalent). **Member** is the tier that gains **treasury withdraw** access (see Guild treasury below).
+- **Promotions:** ship UI + server actions so authorized members can promote along that ladder—at minimum **Initiate → Member** (unlocks treasury take-out per policy) and **Member → Officer**. Define the **permission matrix** (e.g. Owner + Officers may promote to Member; **Officer** promotion might be Owner-only—pick and enforce server-side).
+- **Ownership transfer:** if not already implemented from Phase 3, add an explicit **transfer ownership** action (current owner designates a successor who must be in the guild).
+- **Owner departure → automatic succession:** when the **owner leaves** the guild (leave / kick flow), **transfer ownership** automatically to the **next highest-ranking** eligible member: prefer an **`OFFICER`** over Member/Initiate. Use a **deterministic tie-break** when multiple officers qualify (e.g. longest membership, then join date, then stable user id)—document it so behavior is predictable. If **no Officers** exist, fall back to **`MEMBER`** (same tie-break); if the roster cannot satisfy a successor rule, define behavior (e.g. dissolve guild, promote oldest Initiate, or freeze)—do not leave `ownerId` dangling.
+- **Officer branding:** **`OFFICER`** (and **Owner**) may edit the guild’s **public bio** and **guild emoji** (emoji/icon field on `Guild`); validate on the server (length limits, allowed emoji range).
+
+### Guild treasury
+
+- **Placement:** a **tab or nav entry above the guild raid boss area** on the guild surface; clicking it navigates to a **dedicated treasury page** (not an inline-only panel).
+- **Behavior:** members **deposit items** into the guild pool; **withdrawals are rank-gated**—only certain guild ranks may remove items (enforce **server-side** on every withdraw). Example policy: **`INITIATE`** (just joined) **cannot take** from the treasury; after promotion to **`MEMBER`** (or higher), they **can withdraw**. Deposits may stay open to more ranks than withdrawals (define explicitly).
+- **Distinction from Phase 3:** Phase 3 `GuildDonation` may cover currency/XP-style donations; treasury is **shared inventory** with auditability (who put in/took out, when).
+
+### Daily login chest (7-day consecutive streak)
+
+Track **calendar-day** (or server-defined “login day”) **consecutive** logins.
+
+| Streak day | Chest tier |
+| ---------- | ---------- |
+| 1 | Bronze |
+| 2 | Silver |
+| 3 | Silver |
+| 4 | Gold |
+| 5 | Gold |
+| 6 | Diamond |
+| 7 | Mythic |
+
+**Completed cycle (after day 7 / Mythic):** on the **next** consecutive login, advance the streak position to **day 4** (Gold), **not** day 1—so players reach Mythic again in **four** more consecutive days (4→5→6→7) instead of a full seven from Bronze.
+
+**Broken streak:** **missing** a day resets progression to **day 1** (Bronze).
+
+### Data models
+
+- **Ranks & ownership:** confirm or extend `GuildMember.role` (`INITIATE` | `MEMBER` | `OFFICER`; Owner via `Guild.ownerId`), promotion audit optional; **`Guild.bio`**, **`Guild.emoji`** (or equivalent) for officer editing.
+- **Treasury:** `GuildTreasuryItem` (or ledger + stack rows), deposit/withdraw audit rows; tie **withdraw** permission to `GuildMember.role` (e.g. minimum **`MEMBER`**, below that **`INITIATE`** cannot withdraw) so rank rules stay data-driven.
+- **Daily chest:** per-character streak state (`lastLoginDate`, `currentStreakDay` 1–7, `lastClaimedAt`), chest tier enum aligned with the table above; after a **day-7** claim, next valid login sets streak to **4** (per “completed cycle” rule above).
+
+### API/server actions
+
+- **Guild governance:** promote/demote (role transitions **Initiate → Member → Officer** with permission checks), **transfer ownership**, **leave guild** path that runs **succession** when the leaver is owner; **update guild bio/emoji** (officer-gated).
+- Treasury: list pool, deposit item (validate inventory + guild membership), withdraw item (validate **guild rank allows withdraw** + inventory space).
+- Daily chest: claim endpoint idempotent per calendar day; server computes tier from streak rules.
+
+### Frontend
+
+- Guild roster / settings: **promotion** controls (Initiate→Member, Member→Officer), **transfer ownership** flow, **edit bio + guild emoji** for Owner/Officer.
+- Guild page: **treasury tab/link above raid boss block** → `/guild/treasury` (or equivalent) with deposit/withdraw UX; **hide or disable withdraw** for ranks that cannot take (mirror server rules).
+- Daily chest: claim UI on login hub or town (exact surface TBD), clear streak/progression display.
+
+### Socket events
+
+- Optional: `guild:treasury:update` for live refresh when another member changes the pool.
+
+### Risks
+
+- Treasury dupe/rollback races on concurrent withdraw; permission exploits (junior rank draining items).
+- **Succession** races (owner leaves concurrently with transfer); ambiguous tie-break; guild left with invalid `ownerId`.
+- Promotion/ownership UI spoofing—must mirror **server** authority checks.
+- Login streak timezone edge cases; clock skew; multiple devices claiming same day.
+
+### Likely files
+
+- `prisma/schema.prisma` (`GuildMember.role`, `Guild` bio/emoji, `ownerId`)
+- `src/app/guild/page.tsx`, guild roster/settings UI, new treasury route under guild
+- server actions: guild promotions, ownership transfer, succession on owner leave, branding; treasury + daily claim
+
+### Test checklist
+
+- **Promote** Initiate→Member (treasury withdraw unlocks), Member→Officer; **demote** if supported; **transfer ownership**; **owner leaves** → next **Officer** (then Member fallback) with deterministic tie-break; no orphan owner row.
+- **Officers** (and Owner) can edit **bio** and **guild emoji**; Initiate/Member cannot if policy says so.
+- Deposit/withdraw atomicity; **rank matrix** (e.g. initiate cannot withdraw, member+ can); inventory constraints.
+- Streak increments only on consecutive days; **gap resets to day 1**; **after mythic, next consecutive day is day 4**; claim once per day per tier rules.
+
+---
+
 ## Phase 5: Global market
 
 ### Purpose

@@ -8,6 +8,7 @@ import {
   returnToTownAction,
   returnToTownAndShopAction,
   sellItemAction,
+  sellSelectedItemsAction,
 } from "@/app/actions/game";
 import { AdventureLoadoutPanel } from "@/components/adventure-loadout-panel";
 import { ADVENTURE_REGIONS } from "@/lib/game/adventure";
@@ -31,6 +32,7 @@ import {
 import { ItemHoverCard } from "@/components/item-hover-card";
 import { ShopGoldFxRoot, ShopTransactionForm } from "@/components/shop-gold-fx";
 import { ShopGearList } from "@/components/shop-gear-list";
+import { ShopSellList, type ShopSellRow } from "@/components/shop-sell-list";
 import { ShopQuantityBuy } from "@/components/shop-quantity-buy";
 import { GameNav } from "@/components/game-nav";
 import { GameTopBar } from "@/components/game-top-bar";
@@ -100,7 +102,6 @@ export default async function ShopPage() {
     .filter((e) => e.item.key === HEALTH_POTION_ITEM_KEY)
     .reduce((sum, row) => sum + row.quantity, 0);
 
-  const equippedItemIds = new Set(equipment.map((e) => e.itemId).filter((id): id is string => !!id));
   const equippedBySlot: Partial<
     Record<
       string,
@@ -133,7 +134,32 @@ export default async function ShopPage() {
       bonusDexterity: row.bonusDexterity,
     };
   }
-  const sellableInventory = inventory.filter((inv) => inv.item.sellPrice >= 1 && !equippedItemIds.has(inv.itemId));
+  const sellableInventory = inventory.filter(
+    (inv) => inv.item.sellPrice >= 1 && inv.item.key !== HEALTH_POTION_ITEM_KEY,
+  );
+  const sellRows: ShopSellRow[] = sellableInventory.map((entry) => {
+    const equippedSameSlot = equippedBySlot[entry.item.slot] ?? null;
+    return {
+      id: entry.id,
+      quantity: entry.quantity,
+      forgeLevel: entry.forgeLevel,
+      affixPrefix: entry.affixPrefix,
+      bonusLifeSteal: entry.bonusLifeSteal,
+      bonusCritChance: entry.bonusCritChance,
+      bonusSkillPower: entry.bonusSkillPower,
+      bonusStrength: entry.bonusStrength,
+      bonusConstitution: entry.bonusConstitution,
+      bonusIntelligence: entry.bonusIntelligence,
+      bonusDexterity: entry.bonusDexterity,
+      item: entry.item,
+      compareAgainst: equippedSameSlot
+        ? {
+            ...equippedSameSlot,
+            forgeLevel: equippedSameSlot.forgeLevel ?? undefined,
+          }
+        : null,
+    };
+  });
   const effective = buildCharacterStats(character, equipment);
   const classDefaultFilter: ShopPlaystyle =
     character.class === "WARRIOR" ? "WARRIOR" : character.class === "MAGE" ? "MAGE" : "ROGUE";
@@ -257,60 +283,13 @@ export default async function ShopPage() {
                   Sell spare pack items quickly. Equipped gear must be unequipped first.
                 </p>
                 <div className="mt-3 space-y-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
-                  {sellableInventory.length ? (
-                    sellableInventory.map((entry) => {
-                      const equippedSameSlot = equippedBySlot[entry.item.slot] ?? null;
-                      const compareAgainst = equippedSameSlot
-                        ? {
-                            ...equippedSameSlot,
-                            forgeLevel: equippedSameSlot.forgeLevel ?? undefined,
-                          }
-                        : null;
-                      return (
-                        <div
-                          key={entry.id}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/20 bg-black/50 px-3 py-2 text-sm"
-                        >
-                          <span>
-                            <ItemHoverCard
-                              item={entry.item}
-                              forgeLevel={entry.forgeLevel}
-                              affixPrefix={entry.affixPrefix}
-                              bonusLifeSteal={entry.bonusLifeSteal}
-                              bonusCritChance={entry.bonusCritChance}
-                              bonusSkillPower={entry.bonusSkillPower}
-                              bonusStrength={entry.bonusStrength}
-                              bonusConstitution={entry.bonusConstitution}
-                              bonusIntelligence={entry.bonusIntelligence}
-                              bonusDexterity={entry.bonusDexterity}
-                              compareAgainst={compareAgainst}
-                            >
-                              <span className={`font-medium ${rarityNameClass(entry.item.rarity)}`}>
-                                {entry.item.emoji} {itemDisplayName(entry.item, entry.forgeLevel, entry.affixPrefix)}
-                              </span>
-                            </ItemHoverCard>
-                            <span className="text-zinc-300"> ×{entry.quantity}</span>
-                            <span className="ml-2 font-mono text-xs text-zinc-100/90">{entry.item.sellPrice}g each</span>
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <ShopTransactionForm transactionAction={sellItemAction}>
-                              <input type="hidden" name="inventoryEntryId" value={entry.id} />
-                              <input type="hidden" name="amount" value="ONE" />
-                              <button type="submit" className={marketButtonClass}>
-                                Sell x1
-                              </button>
-                            </ShopTransactionForm>
-                            <ShopTransactionForm transactionAction={sellItemAction}>
-                              <input type="hidden" name="inventoryEntryId" value={entry.id} />
-                              <input type="hidden" name="amount" value="ALL" />
-                              <button type="submit" className={marketButtonClass}>
-                                Sell all
-                              </button>
-                            </ShopTransactionForm>
-                          </div>
-                        </div>
-                      );
-                    })
+                  {sellRows.length ? (
+                    <ShopSellList
+                      rows={sellRows}
+                      buttonClassName={marketButtonClass}
+                      sellItemAction={sellItemAction}
+                      sellSelectedItemsAction={sellSelectedItemsAction}
+                    />
                   ) : (
                     <p className="text-sm text-zinc-300">Nothing to sell right now (or everything is equipped).</p>
                   )}

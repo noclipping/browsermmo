@@ -3,7 +3,22 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireCharacter, requireUser } from "@/lib/auth/guards";
+import {
+  canDemoteOfficerToMember,
+  canEditGuildBranding,
+  canPromoteInitiateToMember,
+  canPromoteMemberToOfficer,
+} from "@/lib/game/guild-rank";
+import { pickGuildSuccessorPlain } from "@/lib/game/guild-succession";
 import { isGuildSymbol } from "@/lib/game/guild-symbols";
+import { unlockGuildboundForUserTx } from "@/lib/game/achievements";
+import {
+  fetchMilestoneCountersJsonTx,
+  reevaluateMilestoneAchievements,
+  sqlSetMilestoneCountersTx,
+} from "@/lib/game/milestone-achievements";
+import { queueAchievementToasts } from "@/lib/achievement-toast-server";
+import { mergeAchievementKeys } from "@/lib/merge-achievement-keys";
 import { awardGuildXp } from "@/lib/game/guild-xp";
 import { prisma } from "@/lib/prisma";
 
@@ -34,7 +49,7 @@ async function getMyMembership(userId: string) {
   });
 }
 
-function canManageGuild(role: "OWNER" | "OFFICER" | "MEMBER") {
+function canManageGuild(role: "OWNER" | "OFFICER" | "MEMBER" | "INITIATE") {
   return role === "OWNER" || role === "OFFICER";
 }
 
@@ -49,7 +64,7 @@ export async function createGuildAction(formData: FormData): Promise<string | nu
   if (!descriptionParsed.success) return "Guild description is too long.";
 
   try {
-    await prisma.$transaction(async (tx) => {
+    const keys = await prisma.$transaction(async (tx) => {
       const guild = await tx.guild.create({
         data: {
           name: nameParsed.data,
@@ -64,12 +79,18 @@ export async function createGuildAction(formData: FormData): Promise<string | nu
           role: "OWNER",
         },
       });
+      const g = await unlockGuildboundForUserTx(tx, user.id);
+      const c = await tx.character.findFirst({ where: { userId: user.id }, select: { id: true } });
+      const r = c ? await reevaluateMilestoneAchievements(tx, c.id) : [];
+      return mergeAchievementKeys(g, r);
     });
+    await queueAchievementToasts(keys);
   } catch {
     return "Guild name is already taken.";
   }
 
   revalidateGuildPaths();
+  revalidatePath("/character");
   return null;
 }
 
@@ -123,7 +144,7 @@ export async function updateGuildEmojiAction(formData: FormData): Promise<string
   const user = await requireUser();
   const me = await getMyMembership(user.id);
   if (!me) return "You must be in a guild.";
-  if (me.role !== "OWNER") return "Only guild leader can set guild emoji.";
+  if (!canEditGuildBranding(me.role)) return "Only the guild leader or officers can set the guild symbol.";
 
   const emojiParsed = guildEmojiSchema.safeParse(String(formData.get("emoji") ?? ""));
   if (!emojiParsed.success) return "Enter a valid emoji.";
@@ -153,7 +174,7 @@ export async function acceptGuildInviteAction(formData: FormData): Promise<strin
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
+    const keys = await prisma.$transaction(async (tx) => {
       await tx.guildInvite.update({
         where: { id: invite.id },
         data: { status: "ACCEPTED" },
@@ -162,15 +183,21 @@ export async function acceptGuildInviteAction(formData: FormData): Promise<strin
         data: {
           guildId: invite.guildId,
           userId: user.id,
-          role: "MEMBER",
+          role: "INITIATE",
         },
       });
+      const g = await unlockGuildboundForUserTx(tx, user.id);
+      const c = await tx.character.findFirst({ where: { userId: user.id }, select: { id: true } });
+      const r = c ? await reevaluateMilestoneAchievements(tx, c.id) : [];
+      return mergeAchievementKeys(g, r);
     });
+    await queueAchievementToasts(keys);
   } catch {
     return "Could not join guild.";
   }
 
   revalidateGuildPaths();
+  revalidatePath("/character");
   return null;
 }
 
@@ -217,9 +244,34 @@ export async function leaveGuildAction(): Promise<string | null> {
   const user = await requireUser();
   const me = await getMyMembership(user.id);
   if (!me) return "You are not in a guild.";
-  if (me.role === "OWNER") return "Owner must transfer ownership before leaving (not added yet).";
 
-  await prisma.guildMember.delete({ where: { userId: user.id } });
+  if (me.role !== "OWNER") {
+    await prisma.guildMember.delete({ where: { userId: user.id } });
+    revalidateGuildPaths();
+    return null;
+  }
+
+  const members = await prisma.guildMember.findMany({
+    where: { guildId: me.guildId },
+    select: { userId: true, role: true, joinedAt: true },
+  });
+  const successor = pickGuildSuccessorPlain(members, user.id);
+  if (!successor) {
+    return "Invite another member (or promote someone) before leaving — the guild must have a successor.";
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.guild.update({
+      where: { id: me.guildId },
+      data: { ownerId: successor.userId },
+    });
+    await tx.guildMember.update({
+      where: { userId: successor.userId },
+      data: { role: "OWNER" },
+    });
+    await tx.guildMember.delete({ where: { userId: user.id } });
+  });
+
   revalidateGuildPaths();
   return null;
 }
@@ -255,11 +307,15 @@ export async function donateGuildGoldAction(formData: FormData): Promise<string 
   const character = await requireCharacter(user.id);
   if (character.gold < amount) return "Not enough gold.";
 
-  await prisma.$transaction(async (tx) => {
+  const keys = await prisma.$transaction(async (tx) => {
     await tx.character.update({
       where: { id: character.id },
       data: { gold: { decrement: amount } },
     });
+    const mc = await fetchMilestoneCountersJsonTx(tx, character.id);
+    const prev = typeof mc.goldDonatedGuild === "number" && Number.isFinite(mc.goldDonatedGuild) ? Math.floor(mc.goldDonatedGuild) : 0;
+    mc.goldDonatedGuild = prev + amount;
+    await sqlSetMilestoneCountersTx(tx, character.id, mc);
     await tx.guildDonation.create({
       data: {
         guildId: me.guildId,
@@ -268,7 +324,9 @@ export async function donateGuildGoldAction(formData: FormData): Promise<string 
       },
     });
     await awardGuildXp(tx, me.guildId, amount, "gold_donation");
+    return reevaluateMilestoneAchievements(tx, character.id);
   });
+  await queueAchievementToasts(keys);
 
   revalidateGuildPaths();
   return null;
@@ -293,5 +351,137 @@ export async function postGuildChatMessageAction(formData: FormData): Promise<st
   });
 
   revalidatePath("/guild");
+  return null;
+}
+
+export async function updateGuildDescriptionAction(formData: FormData): Promise<string | null> {
+  const user = await requireUser();
+  const me = await getMyMembership(user.id);
+  if (!me) return "You must be in a guild.";
+  if (!canEditGuildBranding(me.role)) return "Only the guild leader or officers can edit the guild bio.";
+
+  const descriptionParsed = guildDescriptionSchema.safeParse(String(formData.get("description") ?? ""));
+  if (!descriptionParsed.success) return "Guild description is too long.";
+
+  await prisma.guild.update({
+    where: { id: me.guildId },
+    data: { description: descriptionParsed.data },
+  });
+
+  revalidateGuildPaths();
+  return null;
+}
+
+export async function transferGuildOwnershipAction(formData: FormData): Promise<string | null> {
+  const user = await requireUser();
+  const me = await getMyMembership(user.id);
+  if (!me || me.role !== "OWNER") return "Only the guild leader can transfer ownership.";
+
+  const targetParsed = cuidSchema.safeParse(String(formData.get("targetUserId") ?? ""));
+  if (!targetParsed.success) return "Invalid member.";
+  if (targetParsed.data === user.id) return "Choose another member.";
+
+  const target = await prisma.guildMember.findUnique({ where: { userId: targetParsed.data } });
+  if (!target || target.guildId !== me.guildId) return "That player is not in your guild.";
+  if (target.role === "OWNER") return "Invalid target.";
+
+  const keys = await prisma.$transaction(async (tx) => {
+    await tx.guild.update({
+      where: { id: me.guildId },
+      data: { ownerId: target.userId },
+    });
+    await tx.guildMember.update({
+      where: { userId: user.id },
+      data: { role: "MEMBER" },
+    });
+    await tx.guildMember.update({
+      where: { userId: target.userId },
+      data: { role: "OWNER" },
+    });
+    const oldLeaderChar = await tx.character.findFirst({ where: { userId: user.id }, select: { id: true } });
+    const newLeaderChar = await tx.character.findFirst({ where: { userId: target.userId }, select: { id: true } });
+    let acc: string[] = [];
+    if (oldLeaderChar) acc = mergeAchievementKeys(acc, await reevaluateMilestoneAchievements(tx, oldLeaderChar.id));
+    if (newLeaderChar) acc = mergeAchievementKeys(acc, await reevaluateMilestoneAchievements(tx, newLeaderChar.id));
+    return acc;
+  });
+  await queueAchievementToasts(keys);
+
+  revalidateGuildPaths();
+  revalidatePath("/character");
+  return null;
+}
+
+export async function promoteGuildMemberToMemberAction(formData: FormData): Promise<string | null> {
+  const user = await requireUser();
+  const me = await getMyMembership(user.id);
+  if (!me || !canPromoteInitiateToMember(me.role)) return "You cannot promote members.";
+
+  const targetParsed = cuidSchema.safeParse(String(formData.get("targetUserId") ?? ""));
+  if (!targetParsed.success) return "Invalid member.";
+
+  const target = await prisma.guildMember.findUnique({ where: { userId: targetParsed.data } });
+  if (!target || target.guildId !== me.guildId) return "Member not found.";
+  if (target.role !== "INITIATE") return "That player is not an Initiate.";
+
+  await prisma.guildMember.update({
+    where: { userId: target.userId },
+    data: { role: "MEMBER" },
+  });
+
+  revalidateGuildPaths();
+  return null;
+}
+
+export async function promoteGuildMemberToOfficerAction(formData: FormData): Promise<string | null> {
+  const user = await requireUser();
+  const me = await getMyMembership(user.id);
+  if (!me || !canPromoteMemberToOfficer(me.role)) return "Only the guild leader can promote officers.";
+
+  const targetParsed = cuidSchema.safeParse(String(formData.get("targetUserId") ?? ""));
+  if (!targetParsed.success) return "Invalid member.";
+
+  const target = await prisma.guildMember.findUnique({ where: { userId: targetParsed.data } });
+  if (!target || target.guildId !== me.guildId) return "Member not found.";
+  if (target.role !== "MEMBER") return "Only Members can be promoted to Officer.";
+
+  const keys = await prisma.$transaction(async (tx) => {
+    await tx.guildMember.update({
+      where: { userId: target.userId },
+      data: { role: "OFFICER" },
+    });
+    const promotedChar = await tx.character.findFirst({
+      where: { userId: target.userId },
+      select: { id: true },
+    });
+    if (!promotedChar) return [];
+    return reevaluateMilestoneAchievements(tx, promotedChar.id);
+  });
+  await queueAchievementToasts(keys);
+
+  revalidateGuildPaths();
+  revalidatePath("/character");
+  return null;
+}
+
+export async function demoteGuildOfficerToMemberAction(formData: FormData): Promise<string | null> {
+  const user = await requireUser();
+  const me = await getMyMembership(user.id);
+  if (!me || !canDemoteOfficerToMember(me.role)) return "Only the guild leader can demote officers.";
+
+  const targetParsed = cuidSchema.safeParse(String(formData.get("targetUserId") ?? ""));
+  if (!targetParsed.success) return "Invalid member.";
+  if (targetParsed.data === user.id) return "Use transfer ownership to step down.";
+
+  const target = await prisma.guildMember.findUnique({ where: { userId: targetParsed.data } });
+  if (!target || target.guildId !== me.guildId) return "Member not found.";
+  if (target.role !== "OFFICER") return "That player is not an Officer.";
+
+  await prisma.guildMember.update({
+    where: { userId: target.userId },
+    data: { role: "MEMBER" },
+  });
+
+  revalidateGuildPaths();
   return null;
 }

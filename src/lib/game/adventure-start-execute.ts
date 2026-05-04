@@ -20,6 +20,7 @@ import {
 import { addItemQuantityCapped } from "@/lib/game/inventory-potions";
 import { readOutskirtsBossState } from "@/lib/game/outskirts-sql";
 import { applyXp, scaleXpGain } from "@/lib/game/progression";
+import { addLifetimeGoldEarnedTx } from "@/lib/game/milestone-achievements";
 import { createSoloEncounter, toStartResponse } from "@/lib/game/start-encounter";
 import { prisma } from "@/lib/prisma";
 
@@ -202,7 +203,10 @@ export async function executeAdventureEventChoice(params: {
   if (params.kind === "GOLD") {
     if (Math.random() < 0.62) {
       const amount = rollGoldAmount(region.key) * 2;
-      await prisma.character.update({ where: { id: params.character.id }, data: { gold: { increment: amount } } });
+      await prisma.$transaction(async (tx) => {
+        await tx.character.update({ where: { id: params.character.id }, data: { gold: { increment: amount } } });
+        await addLifetimeGoldEarnedTx(tx, params.character.id, amount);
+      });
       revalidatePath("/town", "layout");
       return {
         ok: true,

@@ -209,7 +209,7 @@ function applyPlayerPhysicalHit(
   critChance: number,
   lines: string[],
   armorLog: { logged: boolean },
-): TurnEncounterState {
+): { state: TurnEncounterState; damageDealt: number } {
   const extraArmor = state.enemyPendingArmorVsPlayer;
   const effectiveDef = state.enemyDefense + extraArmor;
   const { damage, crit } = rollDamage(rawAttack, effectiveDef, critChance);
@@ -231,7 +231,37 @@ function applyPlayerPhysicalHit(
       );
     }
   }
-  return { ...state, enemyHp: nextEnemyHp, playerHp: nextPlayerHp };
+  return { state: { ...state, enemyHp: nextEnemyHp, playerHp: nextPlayerHp }, damageDealt: damage };
+}
+
+/** Per-round combat stats for achievement milestones (aggregated across AUTO / multi-round fights). */
+export type CombatRoundMilestoneAgg = {
+  meleeDmg: number;
+  magicDmg: number;
+  rangedDmg: number;
+  defends: number;
+  killingBlows: number;
+};
+
+export function emptyCombatRoundMilestoneAgg(): CombatRoundMilestoneAgg {
+  return { meleeDmg: 0, magicDmg: 0, rangedDmg: 0, defends: 0, killingBlows: 0 };
+}
+
+export function addCombatRoundMilestoneAgg(a: CombatRoundMilestoneAgg, b: CombatRoundMilestoneAgg): CombatRoundMilestoneAgg {
+  return {
+    meleeDmg: a.meleeDmg + b.meleeDmg,
+    magicDmg: a.magicDmg + b.magicDmg,
+    rangedDmg: a.rangedDmg + b.rangedDmg,
+    defends: a.defends + b.defends,
+    killingBlows: a.killingBlows + b.killingBlows,
+  };
+}
+
+function addLaneDamage(mile: CombatRoundMilestoneAgg, lane: "melee" | "magic" | "ranged", amount: number) {
+  if (amount <= 0) return;
+  if (lane === "melee") mile.meleeDmg += amount;
+  else if (lane === "magic") mile.magicDmg += amount;
+  else mile.rangedDmg += amount;
 }
 
 function hardenArmorAmount(state: TurnEncounterState): number {
@@ -279,12 +309,19 @@ export function resolveCombatRound(params: {
   rogueSkill?: RogueSkill | null;
   /** Snapshot INT from encounter (spell scaling). */
   playerIntelligence?: number;
-}): { state: TurnEncounterState; lines: string[] } {
+}): { state: TurnEncounterState; lines: string[]; milestone: CombatRoundMilestoneAgg } {
   const lines: string[] = [];
   let state = { ...params.state };
   const intent = params.enemyIntent;
   const playerDefending = params.playerAction === "DEFEND";
   const armorLog = { logged: false };
+  const mile = emptyCombatRoundMilestoneAgg();
+
+  const finish = (final: TurnEncounterState): { state: TurnEncounterState; lines: string[]; milestone: CombatRoundMilestoneAgg } => ({
+    state: final,
+    lines,
+    milestone: mile,
+  });
 
   lines.push(intentTelegraphLine(intent, params.enemyShortName));
 
@@ -293,8 +330,11 @@ export function resolveCombatRound(params: {
     if (pc === "ROGUE") {
       lines.push("🏹 Quick Shot — a fast ranged strike!");
     }
+    const lane: "melee" | "magic" | "ranged" = pc === "ROGUE" ? "ranged" : pc === "MAGE" ? "magic" : "melee";
     const basicAttack = pc === "ROGUE" ? state.playerAttack * 1.3 : state.playerAttack;
-    state = applyPlayerPhysicalHit(state, basicAttack, params.enemyLabel, state.playerCrit, lines, armorLog);
+    const hit = applyPlayerPhysicalHit(state, basicAttack, params.enemyLabel, state.playerCrit, lines, armorLog);
+    state = hit.state;
+    addLaneDamage(mile, lane, hit.damageDealt);
   } else if (params.playerAction === "SKILL") {
     const pc = params.playerClass;
     const intl = params.playerIntelligence ?? 0;
@@ -302,7 +342,9 @@ export function resolveCombatRound(params: {
     if (pc === "WARRIOR") {
       lines.push("⚔️ Heavy Strike — you put your weight behind a crushing blow!");
       const boosted = 1 + Math.max(0, state.playerSkillPowerBonus);
-      state = applyPlayerPhysicalHit(state, state.playerAttack * 1.5 * boosted, params.enemyLabel, state.playerCrit, lines, armorLog);
+      const hit = applyPlayerPhysicalHit(state, state.playerAttack * 1.5 * boosted, params.enemyLabel, state.playerCrit, lines, armorLog);
+      state = hit.state;
+      addLaneDamage(mile, "melee", hit.damageDealt);
     } else if (pc === "MAGE") {
       const manaCost = 8;
       if (state.playerMana < manaCost) {
@@ -311,7 +353,9 @@ export function resolveCombatRound(params: {
         lines.push("🔥 Fireball — flame roars toward your foe!");
         const spellPower = Math.floor(state.playerAttack * 0.4 + intl * 1.3);
         const spellAtk = Math.floor(spellPower * 1.3 * (1 + Math.max(0, state.playerSkillPowerBonus)));
-        state = applyPlayerPhysicalHit(state, spellAtk, params.enemyLabel, state.playerCrit, lines, armorLog);
+        const hit = applyPlayerPhysicalHit(state, spellAtk, params.enemyLabel, state.playerCrit, lines, armorLog);
+        state = hit.state;
+        addLaneDamage(mile, "magic", hit.damageDealt);
         state = { ...state, playerMana: Math.max(0, state.playerMana - manaCost) };
       }
     } else if (pc === "ROGUE") {
@@ -323,7 +367,9 @@ export function resolveCombatRound(params: {
         const perHit = Math.floor(roguePower * 0.45 * boosted);
         for (let i = 0; i < 3 && state.enemyHp > 0; i++) {
           lines.push(i === 0 ? "First dagger bites." : i === 1 ? "Second cut follows." : "Third strike drives home.");
-          state = applyPlayerPhysicalHit(state, perHit, params.enemyLabel, state.playerCrit, lines, armorLog);
+          const hit = applyPlayerPhysicalHit(state, perHit, params.enemyLabel, state.playerCrit, lines, armorLog);
+          state = hit.state;
+          addLaneDamage(mile, "ranged", hit.damageDealt);
         }
       } else if (rogueSkill === "SHADOW") {
         lines.push("🌑 Shadow Veil — you slip through the next hostile action untouched.");
@@ -334,7 +380,9 @@ export function resolveCombatRound(params: {
         const perShot = Math.floor(roguePower * 0.65 * boosted);
         for (let i = 0; i < 2 && state.enemyHp > 0; i++) {
           lines.push(i === 0 ? "First shaft flies." : "Second shaft follows.");
-          state = applyPlayerPhysicalHit(state, perShot, params.enemyLabel, state.playerCrit, lines, armorLog);
+          const hit = applyPlayerPhysicalHit(state, perShot, params.enemyLabel, state.playerCrit, lines, armorLog);
+          state = hit.state;
+          addLaneDamage(mile, "ranged", hit.damageDealt);
         }
       }
     } else {
@@ -342,6 +390,7 @@ export function resolveCombatRound(params: {
     }
   } else if (params.playerAction === "DEFEND") {
     lines.push(pick(DEFEND_FLAVOR));
+    mile.defends = 1;
   } else if (params.playerAction === "FLEE") {
     lines.push("🏃 You turn to break away from the fight!");
   } else {
@@ -358,7 +407,8 @@ export function resolveCombatRound(params: {
   state = { ...state, enemyPendingArmorVsPlayer: 0 };
 
   if (state.enemyHp <= 0) {
-    return { state, lines };
+    mile.killingBlows = 1;
+    return finish(state);
   }
 
   lines.push(`— ${params.enemyShortName} acts (${intentDisplayName(intent)}) —`);
@@ -378,7 +428,7 @@ export function resolveCombatRound(params: {
       let { damage } = rollDamage(Math.floor(state.enemyAttack * 0.35), state.playerDefense, 0);
       if (shadowActive) {
         lines.push("🌑 Shadow Veil turns the follow-up strike into mist.");
-        return { state, lines };
+        return finish(state);
       }
       if (playerDefending) {
         const raw = damage;
@@ -391,7 +441,7 @@ export function resolveCombatRound(params: {
     } else {
       lines.push("They give you no free opening this beat.");
     }
-    return { state, lines };
+    return finish(state);
   }
 
   if (intent === "ATTACK") {
@@ -403,7 +453,7 @@ export function resolveCombatRound(params: {
       `${params.enemyLabel} roars — Enrage stacks. Next hit damage ×${nextMult.toFixed(2)} (was ×${state.enemyPendingDamageMult.toFixed(2)}).`,
     );
     state = { ...state, enemyPendingDamageMult: nextMult };
-    return { state: enemyChipAfterUtility(state, playerDefending, lines, shadowActive), lines };
+    return finish(enemyChipAfterUtility(state, playerDefending, lines, shadowActive));
   }
 
   if (intent === "GUARD") {
@@ -413,7 +463,7 @@ export function resolveCombatRound(params: {
       `${params.enemyLabel} Hardens — your next damaging action faces +${nextArmor} effective armor against these blows.`,
     );
     state = { ...state, enemyPendingArmorVsPlayer: nextArmor };
-    return { state: enemyChipAfterUtility(state, playerDefending, lines, shadowActive), lines };
+    return finish(enemyChipAfterUtility(state, playerDefending, lines, shadowActive));
   }
 
   // STRIKE or HEAVY_ATTACK — damage turn; consume pending enrage mult.
@@ -429,7 +479,7 @@ export function resolveCombatRound(params: {
 
   if (shadowActive) {
     lines.push("🌑 Shadow Veil nullifies the incoming blow.");
-    return { state, lines };
+    return finish(state);
   }
 
   if (chargedMult > 1.01) {
@@ -455,7 +505,7 @@ export function resolveCombatRound(params: {
   }
 
   state = { ...state, playerHp: Math.max(0, state.playerHp - damage) };
-  return { state, lines };
+  return finish(state);
 }
 
 /** Auto: brace for telegraphed Heavy Attack, sip when low, otherwise strike. */
@@ -469,7 +519,10 @@ export function runAutoBattle(params: {
   /** Turns before auto-battle may sip again (mirrors manual potion cooldown). */
   initialPotionCooldown?: number;
   potionCooldownAfterUse?: number;
-}): { state: TurnEncounterState; lines: string[]; potionsRemaining: number } {
+  playerClass: CharacterClass;
+  rogueSkill: RogueSkill;
+  playerIntelligence: number;
+}): { state: TurnEncounterState; lines: string[]; potionsRemaining: number; milestone: CombatRoundMilestoneAgg } {
   let s = { ...params.state };
   let strikeStreak = Math.max(0, params.initialEnemyStrikeStreak ?? s.enemyStrikeStreak ?? 0);
   let potions = params.initialPotionCount;
@@ -478,6 +531,7 @@ export function runAutoBattle(params: {
   const lines: string[] = ["—— Auto-battle —— You fight tactically off the telegraph."];
   let roundCounter = params.startRound;
   let exchanges = 0;
+  let milestone = emptyCombatRoundMilestoneAgg();
 
   while (s.playerHp > 0 && s.enemyHp > 0 && exchanges < MAX_AUTO_EXCHANGES) {
     lines.push(`— Round ${roundCounter} —`);
@@ -504,8 +558,12 @@ export function runAutoBattle(params: {
       potionHeal: heal,
       enemyShortName: params.enemyShortName,
       enemyLabel: params.enemyLabel,
+      playerClass: params.playerClass,
+      rogueSkill: params.rogueSkill,
+      playerIntelligence: params.playerIntelligence,
     });
     s = res.state;
+    milestone = addCombatRoundMilestoneAgg(milestone, res.milestone);
     strikeStreak = s.enemyStrikeStreak;
     lines.push(...res.lines);
     exchanges++;
@@ -526,5 +584,5 @@ export function runAutoBattle(params: {
     s = { ...s, playerHp: 0, round: roundCounter + 1 };
   }
 
-  return { state: s, lines, potionsRemaining: potions };
+  return { state: s, lines, potionsRemaining: potions, milestone };
 }

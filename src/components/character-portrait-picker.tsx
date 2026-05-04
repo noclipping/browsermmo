@@ -9,10 +9,13 @@ export function CharacterPortraitPicker({
   characterClass,
   portraitKey,
   updatePortraitAction,
+  previewImgClassName = "h-24 w-full rounded object-contain object-top bg-black/25",
 }: {
   characterClass: CharacterClass;
   portraitKey: string | null;
   updatePortraitAction: (state: string | null, formData: FormData) => Promise<string | null>;
+  /** Tailwind classes for the main portrait preview (e.g. larger header layout). */
+  previewImgClassName?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -52,7 +55,7 @@ export function CharacterPortraitPicker({
           alt={currentPortrait.label}
           width={256}
           height={256}
-          className="h-24 w-full rounded object-contain object-top bg-black/25"
+          className={previewImgClassName}
           decoding="async"
         />
         <p className="mt-1 text-center text-[11px] text-zinc-400">

@@ -16,6 +16,7 @@ function makeState(cls: ClassKey): TurnEncounterState {
     enemyHp: 74,
     enemyMaxHp: 74,
     playerAttack: BASE_BY_CLASS[cls].playerAttack,
+    playerDexterity: 10,
     playerDefense: BASE_BY_CLASS[cls].playerDefense,
     playerMana: BASE_BY_CLASS[cls].playerMana,
     playerMaxMana: BASE_BY_CLASS[cls].playerMaxMana,
@@ -26,7 +27,9 @@ function makeState(cls: ClassKey): TurnEncounterState {
     enemyDefense: 7,
     enemyCrit: 0.05,
     enemyIntent: "STRIKE",
+    enemyStrikeStreak: 0,
     round: 1,
+    playerInvulnerableTurns: 0,
     enemyPendingDamageMult: 1,
     enemyPendingArmorVsPlayer: 0,
   };
@@ -90,6 +93,9 @@ function runAutoSweep(cls: ClassKey) {
     initialPotionCount: 2,
     initialPotionCooldown: 0,
     potionCooldownAfterUse: 2,
+    playerClass: cls,
+    rogueSkill: "VOLLEY",
+    playerIntelligence: cls === "MAGE" ? 15 : 7,
   });
   assertValidState(res.state, `${cls} AUTO`);
   return {

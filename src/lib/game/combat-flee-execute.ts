@@ -1,6 +1,18 @@
 import { revalidatePath } from "next/cache";
 import type { Character, Prisma } from "@prisma/client";
-import { encounterToTurnState, nextEnemyStrikeStreak, resolveCombatRound, rollEnemyIntent } from "@/lib/game/combat-turn";
+import {
+  emptyCombatRoundMilestoneAgg,
+  encounterToTurnState,
+  nextEnemyStrikeStreak,
+  resolveCombatRound,
+  rollEnemyIntent,
+  type CombatRoundMilestoneAgg,
+} from "@/lib/game/combat-turn";
+import {
+  mergeGuildBossFightMilestonesTx,
+  mergeSoloCombatFightIntoCharacterTx,
+  reevaluateMilestoneAchievements,
+} from "@/lib/game/milestone-achievements";
 import {
   BASE_FLEE_CHANCE,
   DEX_FLEE_CHANCE_PER_POINT,
@@ -20,11 +32,16 @@ import { getGuildXpForUser } from "@/lib/game/guild-xp";
 import { resolveGuildBossEncounterEnd } from "@/lib/game/guild-boss-resolve";
 import { buildSoloEncounterUpdateData } from "@/lib/game/encounter-domain";
 import { logCombatTelemetry } from "@/lib/game/combat-telemetry";
+import type { AchievementToastItem } from "@/lib/achievement-toast-types";
+import { achievementToastItemsForKeys } from "@/lib/achievement-toast-server";
+import { mergeAchievementKeys } from "@/lib/merge-achievement-keys";
 import { prisma } from "@/lib/prisma";
 
 type EncounterWithEnemy = Prisma.SoloCombatEncounterGetPayload<{ include: { enemy: true } }>;
 
-export type CombatFleeExecuteResult = { ok: true } | { ok: false; error: string; httpStatus: number };
+export type CombatFleeExecuteResult =
+  | { ok: true; achievementToasts?: AchievementToastItem[] }
+  | { ok: false; error: string; httpStatus: number; achievementToasts?: AchievementToastItem[] };
 
 export function computeFleeChance(params: {
   character: Pick<Character, "dexterity" | "level">;
@@ -45,24 +62,37 @@ function asLog(value: unknown): string[] {
   return value.filter((x): x is string => typeof x === "string");
 }
 
-async function handleFleeDefeat(character: Character, encounter: EncounterWithEnemy, log: string[], finalEnemyHp?: number) {
+async function handleFleeDefeat(
+  character: Character,
+  encounter: EncounterWithEnemy,
+  log: string[],
+  finalEnemyHp?: number,
+  lastRoundMilestone: CombatRoundMilestoneAgg = emptyCombatRoundMilestoneAgg(),
+): Promise<string[]> {
   const endEnemyHp = finalEnemyHp ?? encounter.enemyHp;
 
-  if (encounter.guildBossAttemptId) {
-    await prisma.$transaction(async (tx) => {
-      await resolveGuildBossEncounterEnd(tx, {
+  const defeatAttemptId = encounter.guildBossAttemptId;
+  if (defeatAttemptId) {
+    const keys = await prisma.$transaction(async (tx) => {
+      const r = await resolveGuildBossEncounterEnd(tx, {
         characterId: character.id,
         userId: character.userId,
         encounterId: encounter.id,
-        guildBossAttemptId: encounter.guildBossAttemptId,
+        guildBossAttemptId: defeatAttemptId,
         endEnemyHp,
         outcome: "LOSS",
       });
       const finalHp = Math.max(1, Math.floor(character.maxHp * 0.35));
+      await mergeGuildBossFightMilestonesTx(tx, character.id, {
+        ...lastRoundMilestone,
+        guildBossDamage: r.appliedDamage,
+        tonicsConsumed: 0,
+      });
       await tx.character.update({
         where: { id: character.id },
         data: { hp: finalHp },
       });
+      return reevaluateMilestoneAchievements(tx, character.id);
     });
     logCombatTelemetry({
       mode: "GUILD_BOSS",
@@ -78,7 +108,7 @@ async function handleFleeDefeat(character: Character, encounter: EncounterWithEn
     revalidatePath("/guild");
     revalidatePath("/town", "layout");
     revalidatePath("/adventure", "page");
-    return;
+    return keys;
   }
 
   const town = await prisma.region.findUnique({ where: { key: "town_outskirts" } });
@@ -91,7 +121,7 @@ async function handleFleeDefeat(character: Character, encounter: EncounterWithEn
     ? Math.max(1, Math.floor((character.maxHp + LEVEL_UP_MAX_HP) * 0.35))
     : Math.max(1, Math.floor(character.maxHp * 0.35));
 
-  await prisma.$transaction(async (tx) => {
+  const keys = await prisma.$transaction(async (tx) => {
     await tx.character.update({
       where: { id: character.id },
       data: {
@@ -124,6 +154,15 @@ async function handleFleeDefeat(character: Character, encounter: EncounterWithEn
       },
     });
     await tx.soloCombatEncounter.delete({ where: { id: encounter.id } });
+    const soloKeys = await mergeSoloCombatFightIntoCharacterTx(tx, character.id, {
+      ...lastRoundMilestone,
+      outcome: "LOSS",
+      endHp: finalHp,
+      endMaxHp: character.maxHp,
+      tonicsConsumed: 0,
+    });
+    const reKeys = await reevaluateMilestoneAchievements(tx, character.id);
+    return mergeAchievementKeys(soloKeys, reKeys);
   });
   logCombatTelemetry({
     mode: "SOLO",
@@ -136,6 +175,7 @@ async function handleFleeDefeat(character: Character, encounter: EncounterWithEn
     playerHpRemaining: 0,
     log,
   });
+  return keys;
 }
 
 export async function executeCombatFlee(character: Character, encounterId: string): Promise<CombatFleeExecuteResult> {
@@ -146,10 +186,11 @@ export async function executeCombatFlee(character: Character, encounterId: strin
   if (!encounter) return { ok: false, error: "No active encounter.", httpStatus: 400 };
   if (encounter.playerHp <= 0) {
     const defeatLog = [...asLog(encounter.log), "☠ You collapse before you can escape."];
-    await handleFleeDefeat(character, encounter as EncounterWithEnemy, defeatLog);
+    const keys = await handleFleeDefeat(character, encounter as EncounterWithEnemy, defeatLog);
+    const achievementToasts = keys.length > 0 ? await achievementToastItemsForKeys(keys) : undefined;
     revalidatePath("/town", "layout");
     revalidatePath("/adventure", "page");
-    return { ok: false, error: "You were defeated before you could flee.", httpStatus: 400 };
+    return { ok: false, error: "You were defeated before you could flee.", httpStatus: 400, achievementToasts };
   }
   const fleeChance = computeFleeChance({ character, enemy: encounter.enemy });
   if (Math.random() > fleeChance) {
@@ -170,15 +211,17 @@ export async function executeCombatFlee(character: Character, encounterId: strin
       ...result.lines,
     ];
     if (result.state.playerHp <= 0) {
-      await handleFleeDefeat(
+      const keys = await handleFleeDefeat(
         character,
         encounter as EncounterWithEnemy,
         [...log, "☠ The failed getaway gets you killed."],
         result.state.enemyHp,
+        result.milestone,
       );
+      const achievementToasts = keys.length > 0 ? await achievementToastItemsForKeys(keys) : undefined;
       revalidatePath("/town", "layout");
       revalidatePath("/adventure", "page");
-      return { ok: false, error: "Flee failed, and you were defeated.", httpStatus: 400 };
+      return { ok: false, error: "Flee failed, and you were defeated.", httpStatus: 400, achievementToasts };
     }
     const updateData = buildSoloEncounterUpdateData({
       row: encounter,
@@ -220,13 +263,14 @@ export async function executeCombatFlee(character: Character, encounterId: strin
     return { ok: false, error: "Flee failed. You are still locked in combat.", httpStatus: 400 };
   }
 
-  if (encounter.guildBossAttemptId) {
+  const fleeSuccessAttemptId = encounter.guildBossAttemptId;
+  if (fleeSuccessAttemptId) {
     await prisma.$transaction(async (tx) => {
       await resolveGuildBossEncounterEnd(tx, {
         characterId: character.id,
         userId: character.userId,
         encounterId: encounter.id,
-        guildBossAttemptId: encounter.guildBossAttemptId,
+        guildBossAttemptId: fleeSuccessAttemptId,
         endEnemyHp: encounter.enemyHp,
         outcome: "FLEE",
       });

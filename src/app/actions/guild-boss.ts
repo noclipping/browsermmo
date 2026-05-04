@@ -9,6 +9,7 @@ import { startGuildBossEncounter } from "@/lib/game/guild-boss-encounter";
 import type { ItemTooltipFields } from "@/lib/game/item-tooltip-text";
 import { GUILD_BOSS_RESPAWN_COOLDOWN_MS, trySpawnNextGuildBossIfReady } from "@/lib/game/guild-boss-season";
 import { awardGuildXp } from "@/lib/game/guild-xp";
+import { addLifetimeGoldEarnedTx } from "@/lib/game/milestone-achievements";
 import { prisma } from "@/lib/prisma";
 
 function revalidateGuildBoss() {
@@ -207,16 +208,17 @@ export async function claimGuildBossParticipationRewardAction(formData: FormData
 
   const gold = participationGoldReward(contribution.damageTotal, season.bossKey);
 
-  await prisma.$transaction([
-    prisma.character.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.character.update({
       where: { id: character.id },
       data: { gold: { increment: gold } },
-    }),
-    prisma.guildBossRewardClaim.update({
+    });
+    await addLifetimeGoldEarnedTx(tx, character.id, gold);
+    await tx.guildBossRewardClaim.update({
       where: { userId_seasonId: { userId: user.id, seasonId } },
       data: { participationClaimedAt: new Date() },
-    }),
-  ]);
+    });
+  });
 
   revalidateGuildBoss();
   return null;
@@ -272,6 +274,7 @@ async function claimGuildBossChestInternal(
       where: { id: character.id },
       data: { gold: { increment: gold } },
     });
+    await addLifetimeGoldEarnedTx(tx, character.id, gold);
     const rawDrops = await grantChestRollsToCharacter(tx, { characterId: character.id, chestTier });
     const aggregated = new Map<string, { itemId: string; item: ItemTooltipFields; rarity: string; quantity: number }>();
     for (const d of rawDrops) {

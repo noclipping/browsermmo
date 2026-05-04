@@ -83,31 +83,37 @@ export default async function PlayersPage({ searchParams }: PageProps) {
   const page = Math.min(requestedPage, totalPages);
   const skip = (page - 1) * PER_PAGE;
 
-  const players = await prisma.character.findMany({
-    where,
-    select: {
-      name: true,
-      class: true,
-      level: true,
-      bio: true,
-      portraitKey: true,
-      userId: true,
-      updatedAt: true,
-      region: {
-        select: {
-          name: true,
+  const [players, achievementCatalogTotal] = await Promise.all([
+    prisma.character.findMany({
+      where,
+      select: {
+        name: true,
+        class: true,
+        level: true,
+        bio: true,
+        portraitKey: true,
+        userId: true,
+        updatedAt: true,
+        region: {
+          select: {
+            name: true,
+          },
+        },
+        user: {
+          select: {
+            lastSeenAt: true,
+          },
+        },
+        _count: {
+          select: { achievements: true },
         },
       },
-      user: {
-        select: {
-          lastSeenAt: true,
-        },
-      },
-    },
-    orderBy,
-    skip,
-    take: PER_PAGE,
-  });
+      orderBy,
+      skip,
+      take: PER_PAGE,
+    }),
+    prisma.achievement.count(),
+  ]);
 
   const friendStates = await getFriendProfileButtonStatesForUsers(
     prisma,
@@ -261,7 +267,10 @@ export default async function PlayersPage({ searchParams }: PageProps) {
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-zinc-200">{p.name}</p>
                               <p className="text-xs text-zinc-500">
-                                {CLASS_DISPLAY_NAME[p.class]} · Lv {p.level} · {p.region.name}
+                                {CLASS_DISPLAY_NAME[p.class]} · Lv {p.level} · {p.region.name} ·{" "}
+                                <span className="tabular-nums" title="Achievements unlocked / catalog total">
+                                  <span aria-hidden>🏆</span> {p._count.achievements}/{achievementCatalogTotal}
+                                </span>
                               </p>
                               <div className="mt-0.5">
                                 <PresenceIndicator compact lastSeenAt={p.user.lastSeenAt} />

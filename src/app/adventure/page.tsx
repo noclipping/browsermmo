@@ -5,6 +5,7 @@ import {
   returnToTownAction,
   returnToTownAndShopAction,
 } from "@/app/actions/game";
+import { AchievementToastPostActionDrain } from "@/components/achievement-toast-post-action-drain";
 import { AdventureLoadoutPanel } from "@/components/adventure-loadout-panel";
 import { MobileAdventureOverlays } from "@/components/mobile-adventure-overlays";
 import { ADVENTURE_REGIONS } from "@/lib/game/adventure";
@@ -96,6 +97,7 @@ export default async function AdventurePage({
       ) : null}
       <main className="relative z-10 w-full space-y-6 px-4 py-8 pb-16 lg:px-6">
         <div className="mx-auto w-full max-w-5xl">
+          <AchievementToastPostActionDrain revision={character.updatedAt.toISOString()} />
           <GameTopBar characterName={character.name} characterLevel={character.level} />
           <GameNav
             inTownRegion={inTownRegion}

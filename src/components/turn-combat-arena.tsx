@@ -11,6 +11,7 @@ import { ItemHoverCard } from "@/components/item-hover-card";
 import { useSfx } from "@/components/sfx-provider";
 import type { EnemyKind, SoloEncounterStartJson } from "@/lib/game/start-encounter";
 import { rarityNameClass } from "@/lib/game/item-rarity-styles";
+import { emitAchievementToasts } from "@/lib/achievement-toast-events";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { MAX_POTIONS_PER_BATTLE, STAT_POINTS_PER_LEVEL } from "@/lib/game/constants";
@@ -78,6 +79,8 @@ type ActivePayload = {
   fleeChance?: number;
 };
 
+type AchievementToastPayload = { key: string; name: string; description: string; icon: string };
+
 type EndedPayload = {
   status: "ENDED";
   outcome: "VICTORY" | "DEFEAT" | "FLED";
@@ -93,6 +96,7 @@ type EndedPayload = {
   goldLost?: number;
   finalHp?: number;
   returnedToTown?: boolean;
+  achievementToasts?: AchievementToastPayload[];
 };
 
 type CombatFxTone = "damage" | "heal" | "defend" | "flee";
@@ -488,6 +492,9 @@ export function TurnCombatArena({
         flashTint("defend");
       }
     } else {
+      if (data.achievementToasts?.length) {
+        emitAchievementToasts(data.achievementToasts);
+      }
       setEnded(data);
       setLog(data.log);
       setPotionCount(data.potionCount);
@@ -530,6 +537,9 @@ export function TurnCombatArena({
     if (!fleeState) return;
     if (processedFleeAtRef.current === fleeState.rolledAt) return;
     processedFleeAtRef.current = fleeState.rolledAt;
+    if (fleeState.achievementToasts?.length) {
+      emitAchievementToasts(fleeState.achievementToasts);
+    }
     if (!fleeState.ok) {
       const defeatFromFlee = fleeState.error.toLowerCase().includes("defeated");
       if (defeatFromFlee) {

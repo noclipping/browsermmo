@@ -13,6 +13,7 @@ import { GameTopBar } from "@/components/game-top-bar";
 import { MobileAdventureOverlays } from "@/components/mobile-adventure-overlays";
 import { WorldChatPanel } from "@/components/world-chat-panel";
 import { requireCharacter, requireUser } from "@/lib/auth/guards";
+import { asFormVoid } from "@/lib/as-form-void";
 import { ADVENTURE_REGIONS } from "@/lib/game/adventure";
 import { CLASS_DISPLAY_NAME } from "@/lib/game/constants";
 import { portraitForClass } from "@/lib/game/portraits";
@@ -174,7 +175,7 @@ export default async function FriendsPage() {
                           </div>
                         </div>
                         <div className="flex shrink-0 gap-2">
-                          <form action={acceptFriendRequestAction}>
+                          <form action={asFormVoid(acceptFriendRequestAction)}>
                             <input type="hidden" name="friendshipId" value={row.id} />
                             <button
                               type="submit"
@@ -183,7 +184,7 @@ export default async function FriendsPage() {
                               Accept
                             </button>
                           </form>
-                          <form action={declineFriendRequestAction}>
+                          <form action={asFormVoid(declineFriendRequestAction)}>
                             <input type="hidden" name="friendshipId" value={row.id} />
                             <button
                               type="submit"
@@ -237,7 +238,7 @@ export default async function FriendsPage() {
                             <p className="text-xs text-zinc-500">Pending</p>
                           </div>
                         </div>
-                        <form action={cancelOutgoingFriendRequestAction}>
+                        <form action={asFormVoid(cancelOutgoingFriendRequestAction)}>
                           <input type="hidden" name="friendshipId" value={row.id} />
                           <button
                             type="submit"
@@ -296,7 +297,7 @@ export default async function FriendsPage() {
                             </p>
                           </div>
                         </div>
-                        <form action={removeFriendAction}>
+                        <form action={asFormVoid(removeFriendAction)}>
                           <input type="hidden" name="friendshipId" value={row.id} />
                           <button
                             type="submit"

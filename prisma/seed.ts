@@ -7,6 +7,7 @@ import {
   SMITHING_STONE_ITEM_KEY,
   STAT_POINTS_ON_CREATE,
 } from "../src/lib/game/constants";
+import { ACHIEVEMENT_CATALOG_SEED } from "../src/lib/game/achievement-seed-catalog";
 
 const prisma = new PrismaClient();
 const SLOT_ORDER: ItemSlot[] = ["WEAPON", "HELMET", "CHEST", "GLOVES", "BOOTS", "RING", "AMULET"];
@@ -1708,6 +1709,30 @@ async function main() {
     create: { key: "mossy_cellar", name: "Mossy Cellar", description: "A short solo run ending with a Cave Imp champion.", minLevel: 8, regionId: ruins.id, bossEnemyId: imp.id },
   });
 
+  for (const row of ACHIEVEMENT_CATALOG_SEED) {
+    await prisma.achievement.upsert({
+      where: { key: row.key },
+      create: {
+        id: row.id,
+        key: row.key,
+        name: row.name,
+        description: row.description,
+        icon: row.icon,
+        titleReward: row.titleReward,
+        category: row.category,
+        sortOrder: row.sortOrder,
+      },
+      update: {
+        name: row.name,
+        description: row.description,
+        icon: row.icon,
+        titleReward: row.titleReward,
+        category: row.category,
+        sortOrder: row.sortOrder,
+      },
+    });
+  }
+
   const passwordHash = await bcrypt.hash("password123", 10);
   const user = await prisma.user.upsert({
     where: { email: "tester@local.dev" },
@@ -1779,6 +1804,15 @@ async function main() {
         },
       });
     }
+  }
+
+  const founderAch = await prisma.achievement.findUnique({ where: { key: "founder" } });
+  if (founderAch) {
+    const allChars = await prisma.character.findMany({ select: { id: true } });
+    await prisma.characterAchievement.createMany({
+      data: allChars.map((c) => ({ characterId: c.id, achievementId: founderAch.id })),
+      skipDuplicates: true,
+    });
   }
 }
 

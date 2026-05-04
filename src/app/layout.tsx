@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
+import { AchievementToastProvider } from "@/components/achievement-toast-provider";
 import { ClientHydrationProbe } from "@/components/client-hydration-probe";
 import { SfxProvider } from "@/components/sfx-provider";
 import "./globals.css";
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full bg-[#0c0a09] text-zinc-100">
         <SfxProvider>
+          <AchievementToastProvider />
           <ClientHydrationProbe />
           {children}
         </SfxProvider>

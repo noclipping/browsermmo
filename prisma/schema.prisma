@@ -66,6 +66,8 @@ enum GuildRole {
   OWNER
   OFFICER
   MEMBER
+  /** New recruits — cannot withdraw from guild treasury until promoted to MEMBER. */
+  INITIATE
 }
 
 enum GuildInviteStatus {
@@ -153,8 +155,33 @@ model Guild {
   guildBossAttempts      GuildBossAttempt[]
   guildBossContributions GuildBossContribution[]
   guildBossRewardClaims  GuildBossRewardClaim[]
+  treasuryItems GuildTreasuryItem[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+/** Shared guild item bank (Phase 4.5). Stack shape mirrors `InventoryItem`. */
+model GuildTreasuryItem {
+  id          String   @id @default(cuid())
+  guildId     String
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        Item     @relation(fields: [itemId], references: [id])
+  quantity    Int      @default(1)
+  forgeLevel  Int      @default(0)
+  affixPrefix String?
+  bonusLifeSteal Float  @default(0)
+  bonusCritChance Float @default(0)
+  bonusSkillPower Float @default(0)
+  bonusStrength Int     @default(0)
+  bonusConstitution Int @default(0)
+  bonusIntelligence Int @default(0)
+  bonusDexterity Int    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([guildId, itemId, forgeLevel, affixPrefix, bonusLifeSteal, bonusCritChance, bonusSkillPower, bonusStrength, bonusConstitution, bonusIntelligence, bonusDexterity])
+  @@index([guildId])
 }
 
 model GuildMember {
@@ -163,7 +190,7 @@ model GuildMember {
   guild    Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
   userId   String    @unique
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role     GuildRole @default(MEMBER)
+  role     GuildRole @default(INITIATE)
   joinedAt DateTime  @default(now())
 
   @@unique([guildId, userId])
@@ -290,11 +317,39 @@ model Session {
   expiresAt DateTime
 }
 
+model Achievement {
+  id          String                 @id @default(cuid())
+  key         String                 @unique
+  name        String
+  description String
+  icon        String                 @default("🏅")
+  /** Display string when this achievement's title is equipped (null = no title reward). */
+  titleReward String?
+  /** UI grouping: region_kills, solo_wins, combat_style, level, gear, economy, guild_social, daily, meta, legacy. */
+  category    String                 @default("legacy")
+  sortOrder   Int                    @default(0)
+  unlocks     CharacterAchievement[]
+}
+
+model CharacterAchievement {
+  id            String      @id @default(cuid())
+  characterId   String
+  character     Character   @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([characterId, achievementId])
+  @@index([characterId])
+}
+
 model Character {
   id             String               @id @default(cuid())
   name           String
   portraitKey    String?
   bio            String               @default("")
+  /** Achievement key whose title is displayed; must be unlocked and grant a title. */
+  equippedAchievementKey String?
   userId         String
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   class          CharacterClass
@@ -313,6 +368,12 @@ model Character {
   dexterity      Int                  @default(8)
   statPoints     Int                  @default(0)
   gold           Int                  @default(0)
+  /** Total item quantity deposited into guild treasury (lifetime). */
+  guildTreasuryItemsDeposited Int     @default(0)
+  /** Lifetime daily login chest claims (any tier). */
+  dailyChestsClaimedLifetime  Int     @default(0)
+  /** Server-side milestone counters for achievements (damage totals, streaks, visited regions, etc.). */
+  milestoneCounters           Json    @default("{}")
   /** Wins in Town Outskirts since last Sewer Fencer miniboss (victory only). */
   outskirtsWinsSinceBoss Int          @default(0)
   /** After this many outskirts wins, the next combat spawn is the miniboss. */
@@ -325,6 +386,11 @@ model Character {
   equipment      CharacterEquipment[]
   combatLogs     CombatLog[]
   soloCombats    SoloCombatEncounter[]
+  achievements   CharacterAchievement[]
+  /** Next daily login chest uses this ladder day (1–7). See `src/lib/game/daily-login-chest.ts`. */
+  dailyLoginNextStreakDay Int @default(1)
+  /** UTC calendar date of last daily chest claim. */
+  dailyLoginLastClaimDate DateTime? @db.Date
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
@@ -452,6 +518,7 @@ model Item {
   inventoryRefs InventoryItem[]
   equipmentRefs CharacterEquipment[]
   lootEntries   LootTableEntry[]
+  guildTreasuryStacks GuildTreasuryItem[]
 }
 
 model InventoryItem {

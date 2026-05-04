@@ -40,6 +40,16 @@ import { executeCombatAction, type CombatActionSuccessBody } from "@/lib/game/co
 import { executeCombatFlee } from "@/lib/game/combat-flee-execute";
 import { rollOutskirtsBossInterval } from "@/lib/game/outskirts-boss";
 import { setOutskirtsBossCountersSql } from "@/lib/game/outskirts-sql";
+import {
+  addItemsSoldCountTx,
+  addLifetimeGoldEarnedTx,
+  addLifetimeGoldSpentTx,
+  fetchMilestoneCountersJsonTx,
+  reevaluateMilestoneAchievements,
+  sqlSetMilestoneCountersTx,
+} from "@/lib/game/milestone-achievements";
+import { queueAchievementToasts } from "@/lib/achievement-toast-server";
+import type { AchievementToastItem } from "@/lib/achievement-toast-types";
 import { prisma } from "@/lib/prisma";
 
 const regionSchema = z.object({ regionId: z.string().min(1) });
@@ -121,12 +131,22 @@ export async function changeRegionAction(formData: FormData) {
   const unlockedCount = character.level >= 8 ? 4 : character.level >= 4 ? 3 : 2;
   const allowedByWindow = targetIndex < unlockedCount;
   if (!(character.level >= region.minLevel || allowedByWindow)) return;
-  await prisma.character.update({
-    where: { id: character.id },
-    data: { region: { connect: { id: parsed.data.regionId } } },
+  const keys = await prisma.$transaction(async (tx) => {
+    const mc = await fetchMilestoneCountersJsonTx(tx, character.id);
+    const set = new Set(mc.regionsVisited ?? []);
+    set.add(region.key);
+    mc.regionsVisited = [...set];
+    await tx.character.update({
+      where: { id: character.id },
+      data: { regionId: region.id },
+    });
+    await sqlSetMilestoneCountersTx(tx, character.id, mc);
+    return reevaluateMilestoneAchievements(tx, character.id);
   });
+  await queueAchievementToasts(keys);
   revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
+  revalidatePath("/character", "page");
 }
 
 /** Leave the wilds: set region to town and open the hub (blocked during active combat). */
@@ -224,14 +244,16 @@ export async function resolveAdventureEventChoiceAction(
 
 export type CombatTurnFormState =
   | {
-    ok: true;
-    rolledAt: number;
-    action: "ATTACK" | "DEFEND" | "POTION" | "SKILL" | "AUTO";
-    payload: CombatActionSuccessBody;
-  }
+      ok: true;
+      rolledAt: number;
+      action: "ATTACK" | "DEFEND" | "POTION" | "SKILL" | "AUTO";
+      payload: CombatActionSuccessBody;
+    }
   | { ok: false; rolledAt: number; error: string };
 
-export type CombatFleeFormState = { ok: true; rolledAt: number } | { ok: false; rolledAt: number; error: string };
+export type CombatFleeFormState =
+  | { ok: true; rolledAt: number; achievementToasts?: AchievementToastItem[] }
+  | { ok: false; rolledAt: number; error: string; achievementToasts?: AchievementToastItem[] };
 
 const combatTurnSchema = z.object({
   encounterId: z.string().min(1),
@@ -267,8 +289,8 @@ export async function fleeCombatAction(
   const rolledAt = Date.now();
   if (!parsed.success) return { ok: false, rolledAt, error: "Invalid flee request." };
   const result = await executeCombatFlee(character, parsed.data.encounterId);
-  if (!result.ok) return { ok: false, rolledAt, error: result.error };
-  return { ok: true, rolledAt };
+  if (!result.ok) return { ok: false, rolledAt, error: result.error, achievementToasts: result.achievementToasts };
+  return { ok: true, rolledAt, achievementToasts: result.achievementToasts };
 }
 
 const buyShopEquipmentSchema = z.object({ itemId: z.string().min(1) });
@@ -296,7 +318,7 @@ export async function buyShopEquipmentAction(formData: FormData): Promise<ShopTr
   const price = shopBuyPriceForItem(item);
   if (character.gold < price) return { ok: false };
 
-  await prisma.$transaction(async (tx) => {
+  const keys = await prisma.$transaction(async (tx) => {
     await tx.character.update({
       where: { id: character.id },
       data: { gold: { decrement: price } },
@@ -307,7 +329,10 @@ export async function buyShopEquipmentAction(formData: FormData): Promise<ShopTr
       itemKey: item.key,
       delta: 1,
     });
+    await addLifetimeGoldSpentTx(tx, character.id, price);
+    return reevaluateMilestoneAchievements(tx, character.id);
   });
+  await queueAchievementToasts(keys);
 
   revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
@@ -346,12 +371,12 @@ export async function equipItemAction(formData: FormData) {
   });
   const samePiece = existing?.itemId === inventoryItem.itemId;
 
-  await prisma.$transaction(async (tx) => {
+  const keys = await prisma.$transaction(async (tx) => {
     const invItem = await tx.inventoryItem.findUnique({
       where: { id: parsed.data.inventoryEntryId },
       include: { item: true },
     });
-    if (!invItem || invItem.characterId !== character.id || invItem.item.slot === "CONSUMABLE") return;
+    if (!invItem || invItem.characterId !== character.id || invItem.item.slot === "CONSUMABLE") return [];
 
     const slotRow = await tx.characterEquipment.findUnique({
       where: { characterId_slot: { characterId: character.id, slot: invItem.item.slot as ItemSlot } },
@@ -400,9 +425,12 @@ export async function equipItemAction(formData: FormData) {
         bonusDexterity: samePiece ? (slotRow?.bonusDexterity ?? 0) : (invItem.bonusDexterity ?? 0),
       },
     });
+    return reevaluateMilestoneAchievements(tx, character.id);
   });
+  await queueAchievementToasts(keys);
 
   revalidatePath("/town", "layout");
+  revalidatePath("/character", "page");
 }
 
 const unequipSchema = z.object({ slot: z.enum(["WEAPON", "HELMET", "CHEST", "GLOVES", "BOOTS", "RING", "AMULET"]) });
@@ -422,7 +450,7 @@ export async function unequipSlotAction(formData: FormData) {
   const unequipItemId = worn.itemId;
   if (!unequipItemId) return;
 
-  await prisma.$transaction(async (tx) => {
+  const keys = await prisma.$transaction(async (tx) => {
     await returnGearToInventoryTx(tx, {
       characterId: character.id,
       itemId: unequipItemId,
@@ -452,14 +480,21 @@ export async function unequipSlotAction(formData: FormData) {
         bonusDexterity: 0,
       },
     });
+    return reevaluateMilestoneAchievements(tx, character.id);
   });
+  await queueAchievementToasts(keys);
 
   revalidatePath("/town", "layout");
+  revalidatePath("/character", "page");
 }
 
 const sellSchema = z.object({
   inventoryEntryId: z.string().min(1),
   amount: z.enum(["ONE", "ALL"]).optional(),
+});
+
+const bulkSellSchema = z.object({
+  inventoryEntryIds: z.array(z.string().min(1)).min(1),
 });
 
 /** Town shop: sell one or the full stack for sellPrice gold each. Blocked if equipped or in combat. */
@@ -479,17 +514,13 @@ export async function sellItemAction(formData: FormData): Promise<ShopTransactio
   });
   if (!inv || inv.quantity < 1) return { ok: false };
   if (inv.item.sellPrice < 1) return { ok: false };
-
-  const worn = await prisma.characterEquipment.findFirst({
-    where: { characterId: character.id, itemId: inv.itemId },
-  });
-  if (worn) return { ok: false };
+  if (inv.item.key === HEALTH_POTION_ITEM_KEY) return { ok: false };
 
   const sellAll = parsed.data.amount === "ALL";
   const sellQty = sellAll ? inv.quantity : 1;
   const goldGain = inv.item.sellPrice * sellQty;
 
-  await prisma.$transaction(async (tx) => {
+  const keys = await prisma.$transaction(async (tx) => {
     if (sellQty >= inv.quantity) {
       await tx.inventoryItem.delete({ where: { id: inv.id } });
     } else {
@@ -499,7 +530,64 @@ export async function sellItemAction(formData: FormData): Promise<ShopTransactio
       where: { id: character.id },
       data: { gold: { increment: goldGain } },
     });
+    await addItemsSoldCountTx(tx, character.id, sellQty);
+    await addLifetimeGoldEarnedTx(tx, character.id, goldGain);
+    return reevaluateMilestoneAchievements(tx, character.id);
   });
+  await queueAchievementToasts(keys);
+
+  revalidatePath("/town", "layout");
+  revalidatePath("/shop", "layout");
+  return { ok: true, delta: goldGain };
+}
+
+/** Town shop: sell all selected stacks in one action. */
+export async function sellSelectedItemsAction(formData: FormData): Promise<ShopTransactionResult> {
+  const user = await requireUser();
+  const character = await requireCharacter(user.id);
+  const town = await prisma.region.findUnique({ where: { key: "town_outskirts" } });
+  if (!town || character.regionId !== town.id) return { ok: false };
+  if (!(await assertNoActiveCombat(character.id))) return { ok: false };
+
+  const rawIds = formData
+    .getAll("inventoryEntryId")
+    .map((v) => String(v))
+    .filter((v) => v.length > 0);
+  const dedupedIds = Array.from(new Set(rawIds));
+  const parsed = bulkSellSchema.safeParse({ inventoryEntryIds: dedupedIds });
+  if (!parsed.success) return { ok: false };
+
+  const rows = await prisma.inventoryItem.findMany({
+    where: {
+      id: { in: parsed.data.inventoryEntryIds },
+      characterId: character.id,
+    },
+    include: { item: true },
+  });
+  if (rows.length === 0) return { ok: false };
+
+  const sellable = rows.filter((r) => r.item.sellPrice >= 1 && r.item.key !== HEALTH_POTION_ITEM_KEY);
+  if (sellable.length === 0) return { ok: false };
+
+  const goldGain = sellable.reduce((sum, r) => sum + r.item.sellPrice * r.quantity, 0);
+
+  const soldQty = sellable.reduce((sum, r) => sum + r.quantity, 0);
+  const keys = await prisma.$transaction(async (tx) => {
+    await tx.inventoryItem.deleteMany({
+      where: {
+        id: { in: sellable.map((r) => r.id) },
+        characterId: character.id,
+      },
+    });
+    await tx.character.update({
+      where: { id: character.id },
+      data: { gold: { increment: goldGain } },
+    });
+    await addItemsSoldCountTx(tx, character.id, soldQty);
+    await addLifetimeGoldEarnedTx(tx, character.id, goldGain);
+    return reevaluateMilestoneAchievements(tx, character.id);
+  });
+  await queueAchievementToasts(keys);
 
   revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
@@ -549,7 +637,7 @@ export async function buyPotionAction(formData?: FormData): Promise<ShopTransact
   if (quantity < 1) return { ok: false };
   const totalPrice = price * quantity;
 
-  await prisma.$transaction(async (tx) => {
+  const keys = await prisma.$transaction(async (tx) => {
     await tx.character.update({
       where: { id: character.id },
       data: { gold: { decrement: totalPrice } },
@@ -560,7 +648,10 @@ export async function buyPotionAction(formData?: FormData): Promise<ShopTransact
       itemKey: potion.key,
       delta: quantity,
     });
+    await addLifetimeGoldSpentTx(tx, character.id, totalPrice);
+    return reevaluateMilestoneAchievements(tx, character.id);
   });
+  await queueAchievementToasts(keys);
 
   revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
@@ -596,7 +687,7 @@ export async function consumeTonicOutsideCombatAction() {
   const heal = potionHealAmount(character.maxHp);
   const nextHp = Math.min(character.maxHp, character.hp + heal);
 
-  await prisma.$transaction(async (tx) => {
+  const keys = await prisma.$transaction(async (tx) => {
     await tx.character.update({
       where: { id: character.id },
       data: { hp: nextHp },
@@ -606,7 +697,13 @@ export async function consumeTonicOutsideCombatAction() {
     } else {
       await tx.inventoryItem.update({ where: { id: inv.id }, data: { quantity: { decrement: 1 } } });
     }
+    const mc = await fetchMilestoneCountersJsonTx(tx, character.id);
+    const prev = typeof mc.tonicSips === "number" && Number.isFinite(mc.tonicSips) ? Math.floor(mc.tonicSips) : 0;
+    mc.tonicSips = prev + 1;
+    await sqlSetMilestoneCountersTx(tx, character.id, mc);
+    return reevaluateMilestoneAchievements(tx, character.id);
   });
+  await queueAchievementToasts(keys);
 
   revalidatePath("/town", "layout");
   revalidatePath("/adventure", "page");
@@ -637,7 +734,7 @@ export async function buySmithingStoneAction(formData?: FormData): Promise<ShopT
   const stone = await prisma.item.findUnique({ where: { key: SMITHING_STONE_ITEM_KEY } });
   if (!stone) return { ok: false };
 
-  await prisma.$transaction(async (tx) => {
+  const keys = await prisma.$transaction(async (tx) => {
     await tx.character.update({
       where: { id: character.id },
       data: { gold: { decrement: totalPrice } },
@@ -648,7 +745,10 @@ export async function buySmithingStoneAction(formData?: FormData): Promise<ShopT
       itemKey: stone.key,
       delta: quantity,
     });
+    await addLifetimeGoldSpentTx(tx, character.id, totalPrice);
+    return reevaluateMilestoneAchievements(tx, character.id);
   });
+  await queueAchievementToasts(keys);
 
   revalidatePath("/town", "layout");
   revalidatePath("/shop", "layout");
@@ -729,7 +829,7 @@ export async function forgeUpgradeAction(formData: FormData) {
   const stonesRequired = currentForge + 1;
   if (!stoneInv || stoneInv.quantity < stonesRequired) return;
 
-  await prisma.$transaction(async (tx) => {
+  const keys = await prisma.$transaction(async (tx) => {
     await tx.character.update({
       where: { id: character.id },
       data: { gold: { decrement: FORGE_UPGRADE_GOLD_COST } },
@@ -743,7 +843,10 @@ export async function forgeUpgradeAction(formData: FormData) {
     } else {
       await tx.inventoryItem.update({ where: { id: stoneInv.id }, data: { quantity: { decrement: stonesRequired } } });
     }
+    await addLifetimeGoldSpentTx(tx, character.id, FORGE_UPGRADE_GOLD_COST);
+    return reevaluateMilestoneAchievements(tx, character.id);
   });
+  await queueAchievementToasts(keys);
 
   revalidatePath("/town", "layout");
   revalidatePath("/forge", "layout");

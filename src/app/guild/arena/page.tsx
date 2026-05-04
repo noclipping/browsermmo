@@ -18,6 +18,7 @@ import { GuildRaidChestCard, GuildRaidChestContributionStrip, GuildRaidChestPrev
 import { MobileAdventureOverlays } from "@/components/mobile-adventure-overlays";
 import { WorldChatPanel } from "@/components/world-chat-panel";
 import { requireCharacter, requireUser } from "@/lib/auth/guards";
+import { asFormVoid } from "@/lib/as-form-void";
 import { ADVENTURE_REGIONS } from "@/lib/game/adventure";
 import { getChestDropTable, getChestGoldReward, getGuildBossChestTier, getNextChestTierProgress, GUILD_BOSS_CHEST_LABEL } from "@/lib/game/guild-boss-chest";
 import { GUILD_BOSS_ATTEMPTS_PER_24H, getBossDefinitionByKey, participationGoldReward } from "@/lib/game/guild-boss-definitions";
@@ -277,7 +278,7 @@ export default async function GuildArenaPage() {
                   {claimBySeason[activeBossSeason.id]?.participationClaimedAt ? (
                     <span className="text-emerald-400">Claimed</span>
                   ) : (
-                    <form action={claimGuildBossParticipationRewardAction} className="inline">
+                    <form action={asFormVoid(claimGuildBossParticipationRewardAction)} className="inline">
                       <input type="hidden" name="seasonId" value={activeBossSeason.id} />
                       <button type="submit" className="rounded border border-white/20 bg-black/50 px-2 py-0.5 text-[11px] font-semibold text-zinc-200">
                         Claim
@@ -308,7 +309,7 @@ export default async function GuildArenaPage() {
           <div className="mt-3 rounded-lg border border-fuchsia-900/40 bg-fuchsia-950/20 p-3">
             <p className="text-[10px] font-bold uppercase tracking-widest text-fuchsia-300/85">Debug tools (dev only)</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <form action={debugRefreshGuildBossAttemptsAction}>
+              <form action={asFormVoid(debugRefreshGuildBossAttemptsAction)}>
                 <button
                   type="submit"
                   className="rounded border border-fuchsia-700/40 bg-black/40 px-2 py-1 text-[11px] font-semibold text-fuchsia-100 hover:bg-black/60"
@@ -316,7 +317,7 @@ export default async function GuildArenaPage() {
                   Refresh raid attempts
                 </button>
               </form>
-              <form action={debugEndGuildBossCycleAction}>
+              <form action={asFormVoid(debugEndGuildBossCycleAction)}>
                 <button
                   type="submit"
                   className="rounded border border-fuchsia-700/40 bg-black/40 px-2 py-1 text-[11px] font-semibold text-fuchsia-100 hover:bg-black/60"
@@ -324,7 +325,7 @@ export default async function GuildArenaPage() {
                   End raid cycle
                 </button>
               </form>
-              <form action={debugKillGuildBossAction}>
+              <form action={asFormVoid(debugKillGuildBossAction)}>
                 <button
                   type="submit"
                   className="rounded border border-fuchsia-700/40 bg-black/40 px-2 py-1 text-[11px] font-semibold text-fuchsia-100 hover:bg-black/60"
@@ -332,7 +333,7 @@ export default async function GuildArenaPage() {
                   Kill boss (full)
                 </button>
               </form>
-              <form action={debugRespawnGuildBossNowAction}>
+              <form action={asFormVoid(debugRespawnGuildBossNowAction)}>
                 <button
                   type="submit"
                   className="rounded border border-fuchsia-700/40 bg-black/40 px-2 py-1 text-[11px] font-semibold text-fuchsia-100 hover:bg-black/60"
@@ -368,7 +369,7 @@ export default async function GuildArenaPage() {
                           {claim?.participationClaimedAt ? (
                             <span>Claimed</span>
                           ) : (
-                            <form action={claimGuildBossParticipationRewardAction} className="inline">
+                            <form action={asFormVoid(claimGuildBossParticipationRewardAction)} className="inline">
                               <input type="hidden" name="seasonId" value={s.id} />
                               <button type="submit" className="rounded border border-white/15 px-2 py-0.5 text-[11px] text-zinc-200">
                                 Claim

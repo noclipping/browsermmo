@@ -6,9 +6,12 @@ import { useRouter } from "next/navigation";
 export function CharacterBioEditor({
   initialBio,
   updateBioAction,
+  variant = "default",
 }: {
   initialBio: string;
   updateBioAction: (formData: FormData) => Promise<string | null>;
+  /** Softer read/edit chrome when embedded in the character sheet header. */
+  variant?: "default" | "header";
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -37,6 +40,23 @@ export function CharacterBioEditor({
     });
   };
 
+  const readBoxClass =
+    variant === "header"
+      ? "min-h-9 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm leading-relaxed text-zinc-300"
+      : "min-h-10 rounded border border-zinc-900 bg-black/20 px-3 py-2 text-sm text-zinc-300";
+  const secondaryBtnClass =
+    variant === "header"
+      ? "rounded border border-white/15 bg-black/40 px-2.5 py-1 text-[11px] font-semibold text-zinc-200 hover:bg-black/55 disabled:opacity-50"
+      : "rounded border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50";
+  const primaryBtnClass =
+    variant === "header"
+      ? "rounded-lg border border-amber-800/50 bg-amber-950/25 px-3 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-900/30 disabled:opacity-50"
+      : "rounded-lg border border-white/20 bg-black/55 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:border-white/35 hover:bg-black/70 disabled:opacity-50";
+  const textareaClass =
+    variant === "header"
+      ? "w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600"
+      : "w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200";
+
   return (
     <div className="space-y-2">
       {editing ? (
@@ -48,11 +68,11 @@ export function CharacterBioEditor({
             maxLength={180}
             rows={3}
             placeholder="Write a short bio or tagline..."
-            className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200"
+            className={textareaClass}
           />
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] text-zinc-500">{draftBio.length}/180</p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -61,15 +81,11 @@ export function CharacterBioEditor({
                   setFeedback(null);
                 }}
                 disabled={pending}
-                className="rounded border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
+                className={secondaryBtnClass}
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={pending}
-                className="rounded-lg border border-white/20 bg-black/55 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:border-white/35 hover:bg-black/70 disabled:opacity-50"
-              >
+              <button type="submit" disabled={pending} className={primaryBtnClass}>
                 {pending ? "Saving..." : "Save bio"}
               </button>
             </div>
@@ -77,9 +93,7 @@ export function CharacterBioEditor({
         </form>
       ) : (
         <div className="space-y-2">
-          <p className="min-h-10 rounded border border-zinc-900 bg-black/20 px-3 py-2 text-sm text-zinc-300">
-            {initialBio || "No bio set yet."}
-          </p>
+          <p className={readBoxClass}>{initialBio || "No bio set yet — add a line that shows on your public profile."}</p>
           <button
             type="button"
             onClick={() => {
@@ -87,7 +101,7 @@ export function CharacterBioEditor({
               setEditing(true);
               setFeedback(null);
             }}
-            className="rounded border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-zinc-800"
+            className={variant === "header" ? secondaryBtnClass : "rounded border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-zinc-800"}
           >
             Edit bio
           </button>

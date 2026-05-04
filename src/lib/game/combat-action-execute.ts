@@ -3,8 +3,23 @@ import type { Character, Prisma } from "@prisma/client";
 import { buildVictoryCharacterUpdate, rollDrops, rollGoldReward, xpForOutcome } from "@/lib/game/combat-rewards";
 import { applyGuildBonusToCombatXp } from "@/lib/game/guild-progression";
 import { getGuildXpForUser } from "@/lib/game/guild-xp";
+import { ACHIEVEMENT_KEYS, tryUnlockRatbaneGuildBossTx } from "@/lib/game/achievements";
 import { resolveGuildBossEncounterEnd } from "@/lib/game/guild-boss-resolve";
-import { encounterToTurnState, nextEnemyStrikeStreak, potionHealAmount, resolveCombatRound, rollEnemyIntent, runAutoBattle } from "@/lib/game/combat-turn";
+import {
+  addCombatRoundMilestoneAgg,
+  emptyCombatRoundMilestoneAgg,
+  encounterToTurnState,
+  nextEnemyStrikeStreak,
+  potionHealAmount,
+  resolveCombatRound,
+  rollEnemyIntent,
+  runAutoBattle,
+} from "@/lib/game/combat-turn";
+import {
+  mergeGuildBossFightMilestonesTx,
+  mergeSoloCombatFightIntoCharacterTx,
+  reevaluateMilestoneAchievements,
+} from "@/lib/game/milestone-achievements";
 import {
   activeSkillForCharacter,
   HEALTH_POTION_ITEM_KEY,
@@ -26,6 +41,9 @@ import {
   buildSoloEncounterUpdateData,
 } from "@/lib/game/encounter-domain";
 import { logCombatTelemetry } from "@/lib/game/combat-telemetry";
+import type { AchievementToastItem } from "@/lib/achievement-toast-types";
+import { achievementToastItemsForKeys } from "@/lib/achievement-toast-server";
+import { mergeAchievementKeys } from "@/lib/merge-achievement-keys";
 import { prisma } from "@/lib/prisma";
 
 type CombatActionKind = "ATTACK" | "DEFEND" | "POTION" | "SKILL" | "AUTO";
@@ -80,6 +98,7 @@ export type CombatActionSuccessBody =
       log: string[];
       potionCount: number;
       guildBoss?: { appliedDamage: number; guildDefeated: boolean };
+      achievementToasts?: AchievementToastItem[];
     }
   | {
       status: "ENDED";
@@ -93,6 +112,7 @@ export type CombatActionSuccessBody =
       potionCount: number;
       leveled: boolean;
       guildBoss?: { appliedDamage: number; guildDefeated: boolean };
+      achievementToasts?: AchievementToastItem[];
     };
 
 export type CombatActionExecuteResult =
@@ -204,12 +224,13 @@ export async function executeCombatAction(
 ): Promise<CombatActionExecuteResult> {
   const encounter = await prisma.soloCombatEncounter.findFirst({
     where: { id: input.encounterId, characterId: character.id, status: "ACTIVE" },
-    include: { enemy: true },
+    include: { enemy: { include: { region: { select: { key: true } } } } },
   });
 
   if (!encounter) return { ok: false, error: "No active encounter.", httpStatus: 400 };
 
   const enemy = encounter.enemy;
+  const enemyRegionKey = enemy.region?.key ?? null;
   const enemyLabel = `${enemy.emoji} ${enemy.name}`;
   const baseLog = asLog(encounter.log);
   const potionsUsedSoFar = baseLog.reduce((sum, line) => (line.toLowerCase().includes("crimson tonic") ? sum + 1 : sum), 0);
@@ -217,11 +238,12 @@ export async function executeCombatAction(
   const nextRound = encounter.round + 1;
   const newLines: string[] = [];
   let potionsUsedInAction = 0;
+  let fightMilestone = emptyCombatRoundMilestoneAgg();
 
   if (input.action === "AUTO") {
     const potionStart = Math.max(0, Math.min(await potionCountForCharacter(character.id), MAX_POTIONS_PER_BATTLE - potionsUsedSoFar));
     const potionItem = await prisma.item.findUnique({ where: { key: HEALTH_POTION_ITEM_KEY } });
-    const { state: autoState, lines, potionsRemaining } = runAutoBattle({
+    const { state: autoState, lines, potionsRemaining, milestone: autoMile } = runAutoBattle({
       state,
       enemyShortName: enemy.name,
       enemyLabel,
@@ -230,8 +252,12 @@ export async function executeCombatAction(
       initialPotionCount: potionStart,
       initialPotionCooldown: encounter.potionCooldownRemaining,
       potionCooldownAfterUse: POTION_COOLDOWN_AFTER_USE_TURNS,
+      playerClass: character.class,
+      rogueSkill: character.rogueSkill,
+      playerIntelligence: encounter.playerIntelligence,
     });
     state = autoState;
+    fightMilestone = autoMile;
     newLines.push(...lines);
     const used = potionStart - potionsRemaining;
     potionsUsedInAction = Math.max(0, used);
@@ -251,8 +277,10 @@ export async function executeCombatAction(
         playerAction: "ATTACK",
         enemyShortName: enemy.name,
         enemyLabel,
+        playerClass: character.class,
       });
       state = res.state;
+      fightMilestone = addCombatRoundMilestoneAgg(fightMilestone, res.milestone);
       newLines.push(...res.lines);
     } else if (input.action === "DEFEND") {
       const res = resolveCombatRound({
@@ -263,6 +291,7 @@ export async function executeCombatAction(
         enemyLabel,
       });
       state = res.state;
+      fightMilestone = addCombatRoundMilestoneAgg(fightMilestone, res.milestone);
       newLines.push(...res.lines);
     } else if (input.action === "SKILL") {
       if (encounter.skillCooldownRemaining > 0) {
@@ -279,6 +308,7 @@ export async function executeCombatAction(
         playerIntelligence: encounter.playerIntelligence,
       });
       state = res.state;
+      fightMilestone = addCombatRoundMilestoneAgg(fightMilestone, res.milestone);
       newLines.push(...res.lines);
     } else {
       const potionItem = await prisma.item.findUnique({ where: { key: HEALTH_POTION_ITEM_KEY } });
@@ -320,6 +350,7 @@ export async function executeCombatAction(
         enemyLabel,
       });
       state = res.state;
+      fightMilestone = addCombatRoundMilestoneAgg(fightMilestone, res.milestone);
       newLines.push(...res.lines);
       await consumeOnePotion(character.id, potionItem.id);
       potionsUsedInAction = 1;
@@ -404,23 +435,34 @@ export async function executeCombatAction(
   }
 
   if (victory) {
-    if (encounter.guildBossAttemptId) {
+    const guildBossAttemptId = encounter.guildBossAttemptId;
+    if (guildBossAttemptId) {
       log.push(`★ Sortie complete — your guild drives the raid boss back (${enemyLabel}).`);
       const gb = await prisma.$transaction(async (tx) => {
         const r = await resolveGuildBossEncounterEnd(tx, {
           characterId: character.id,
           userId: character.userId,
           encounterId: encounter.id,
-          guildBossAttemptId: encounter.guildBossAttemptId,
+          guildBossAttemptId,
           endEnemyHp: state.enemyHp,
           outcome: "WIN",
         });
+        await mergeGuildBossFightMilestonesTx(tx, character.id, {
+          ...fightMilestone,
+          guildBossDamage: r.appliedDamage,
+          tonicsConsumed: potionsUsedInAction,
+        });
+        const ratNew = await tryUnlockRatbaneGuildBossTx(tx, character.id, r.guildDefeated, r.bossKey);
         await tx.character.update({
           where: { id: character.id },
           data: { hp: state.playerHp },
         });
-        return r;
+        const reKeys = await reevaluateMilestoneAchievements(tx, character.id);
+        const achievementKeys = mergeAchievementKeys(ratNew ? [ACHIEVEMENT_KEYS.RATBANE] : [], reKeys);
+        return { ...r, achievementKeys };
       });
+      const achievementToasts =
+        gb.achievementKeys.length > 0 ? await achievementToastItemsForKeys(gb.achievementKeys) : undefined;
       logCombatTelemetry({
         mode: "GUILD_BOSS",
         outcome: "VICTORY",
@@ -435,6 +477,7 @@ export async function executeCombatAction(
       revalidatePath("/guild");
       revalidatePath("/town", "layout");
       revalidatePath("/adventure", "page");
+      revalidatePath("/character");
       const potionCount = await potionCountForCharacter(character.id);
       return {
         ok: true,
@@ -450,6 +493,7 @@ export async function executeCombatAction(
           log,
           potionCount,
           guildBoss: { appliedDamage: gb.appliedDamage, guildDefeated: gb.guildDefeated },
+          achievementToasts,
         },
       };
     }
@@ -465,7 +509,7 @@ export async function executeCombatAction(
     const { data: charUpdate, leveled } = buildVictoryCharacterUpdate(char, state.playerHp, xpGained, goldGained);
     const reg = await prisma.region.findUnique({ where: { id: char.regionId } });
 
-    await prisma.$transaction(async (tx) => {
+    const achievementKeys = await prisma.$transaction(async (tx) => {
       await tx.character.update({ where: { id: character.id }, data: charUpdate });
       if (reg?.key === "town_outskirts") {
         if (enemy.isAdventureMiniBoss) {
@@ -481,7 +525,20 @@ export async function executeCombatAction(
         data: { characterId: character.id, enemyId: enemy.id, outcome: "WIN", turns: state.round, log, xpGained, goldGained },
       });
       await tx.soloCombatEncounter.delete({ where: { id: encounter.id } });
+      const soloKeys = await mergeSoloCombatFightIntoCharacterTx(tx, character.id, {
+        ...fightMilestone,
+        outcome: "WIN",
+        endHp: state.playerHp,
+        endMaxHp: state.playerMaxHp,
+        tonicsConsumed: potionsUsedInAction,
+        enemyRegionKey,
+        goldGainedOnWin: goldGained,
+      });
+      const reKeys = await reevaluateMilestoneAchievements(tx, character.id);
+      return mergeAchievementKeys(soloKeys, reKeys);
     });
+    const achievementToasts =
+      achievementKeys.length > 0 ? await achievementToastItemsForKeys(achievementKeys) : undefined;
     logCombatTelemetry({
       mode: "SOLO",
       outcome: "VICTORY",
@@ -529,28 +586,38 @@ export async function executeCombatAction(
         leveled,
         log,
         potionCount,
+        achievementToasts,
       },
     };
   }
 
-  if (encounter.guildBossAttemptId) {
+  const defeatGuildBossAttemptId = encounter.guildBossAttemptId;
+  if (defeatGuildBossAttemptId) {
     log.push(`☠ You fall — your blows still counted toward the guild raid.`);
     const gb = await prisma.$transaction(async (tx) => {
       const r = await resolveGuildBossEncounterEnd(tx, {
         characterId: character.id,
         userId: character.userId,
         encounterId: encounter.id,
-        guildBossAttemptId: encounter.guildBossAttemptId,
+        guildBossAttemptId: defeatGuildBossAttemptId,
         endEnemyHp: state.enemyHp,
         outcome: "LOSS",
       });
       const finalHp = Math.max(1, Math.floor(character.maxHp * 0.35));
+      await mergeGuildBossFightMilestonesTx(tx, character.id, {
+        ...fightMilestone,
+        guildBossDamage: r.appliedDamage,
+        tonicsConsumed: potionsUsedInAction,
+      });
       await tx.character.update({
         where: { id: character.id },
         data: { hp: finalHp },
       });
-      return { ...r, finalHp };
+      const achievementKeys = await reevaluateMilestoneAchievements(tx, character.id);
+      return { ...r, finalHp, achievementKeys };
     });
+    const defeatAchievementToasts =
+      gb.achievementKeys.length > 0 ? await achievementToastItemsForKeys(gb.achievementKeys) : undefined;
     logCombatTelemetry({
       mode: "GUILD_BOSS",
       outcome: "DEFEAT",
@@ -580,6 +647,7 @@ export async function executeCombatAction(
         potionCount,
         leveled: false,
         guildBoss: { appliedDamage: gb.appliedDamage, guildDefeated: gb.guildDefeated },
+        achievementToasts: defeatAchievementToasts,
       },
     };
   }
@@ -592,7 +660,7 @@ export async function executeCombatAction(
   const progression = applyXp(char.level, char.xp, xpGained);
   const leveledOnDefeat = progression.level > char.level;
 
-  await prisma.$transaction(async (tx) => {
+  const soloDefeatKeys = await prisma.$transaction(async (tx) => {
     await tx.character.update({
       where: { id: character.id },
       data: {
@@ -619,7 +687,19 @@ export async function executeCombatAction(
       data: { characterId: character.id, enemyId: enemy.id, outcome: "LOSS", turns: state.round, log, xpGained, goldGained: 0 },
     });
     await tx.soloCombatEncounter.delete({ where: { id: encounter.id } });
+    const soloKeys = await mergeSoloCombatFightIntoCharacterTx(tx, character.id, {
+      ...fightMilestone,
+      outcome: "LOSS",
+      endHp: state.playerHp,
+      endMaxHp: state.playerMaxHp,
+      tonicsConsumed: potionsUsedInAction,
+      enemyRegionKey,
+    });
+    const reKeys = await reevaluateMilestoneAchievements(tx, character.id);
+    return mergeAchievementKeys(soloKeys, reKeys);
   });
+  const soloDefeatToasts =
+    soloDefeatKeys.length > 0 ? await achievementToastItemsForKeys(soloDefeatKeys) : undefined;
   logCombatTelemetry({
     mode: "SOLO",
     outcome: "DEFEAT",
@@ -648,6 +728,7 @@ export async function executeCombatAction(
       log,
       potionCount,
       leveled: leveledOnDefeat,
+      achievementToasts: soloDefeatToasts,
     },
   };
 }
