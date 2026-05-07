@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cancelGuildInviteAction, inviteToGuildAction } from "@/app/actions/guild";
-import { consumeTonicOutsideCombatAction, returnToTownAction, returnToTownAndShopAction } from "@/app/actions/game";
+import {
+  consumeTonicOutsideCombatAction,
+  returnToTownAction,
+  returnToTownAndMarketAction,
+  returnToTownAndShopAction,
+} from "@/app/actions/game";
 import { AdventureLoadoutPanel } from "@/components/adventure-loadout-panel";
 import { GameNav } from "@/components/game-nav";
 import { GameTopBar } from "@/components/game-top-bar";
@@ -152,6 +157,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
             combatLocked={combatLocked}
             returnToTownAction={returnToTownAction}
             returnToTownAndShopAction={returnToTownAndShopAction}
+            returnToTownAndMarketAction={returnToTownAndMarketAction}
           />
         </div>
 
@@ -306,7 +312,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
             <div className="flex gap-2">
               <Link
-                href="/players"
+                href="/social/directory"
                 className="inline-block rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-100 hover:bg-white/10"
               >
                 Player directory

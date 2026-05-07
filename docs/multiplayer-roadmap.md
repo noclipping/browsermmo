@@ -393,13 +393,13 @@ Track **calendar-day** (or server-defined “login day”) **consecutive** login
 
 | Streak day | Chest tier |
 | ---------- | ---------- |
-| 1 | Bronze |
-| 2 | Silver |
-| 3 | Silver |
-| 4 | Gold |
-| 5 | Gold |
-| 6 | Diamond |
-| 7 | Mythic |
+| 1          | Bronze     |
+| 2          | Silver     |
+| 3          | Silver     |
+| 4          | Gold       |
+| 5          | Gold       |
+| 6          | Diamond    |
+| 7          | Mythic     |
 
 **Completed cycle (after day 7 / Mythic):** on the **next** consecutive login, advance the streak position to **day 4** (Gold), **not** day 1—so players reach Mythic again in **four** more consecutive days (4→5→6→7) instead of a full seven from Bronze.
 

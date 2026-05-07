@@ -6,6 +6,7 @@ import {
   buyShopEquipmentAction,
   buySmithingStoneAction,
   returnToTownAction,
+  returnToTownAndMarketAction,
   returnToTownAndShopAction,
   sellItemAction,
   sellSelectedItemsAction,
@@ -26,7 +27,6 @@ import {
   shopStatTagsFromItem,
   shopStoneBuyPrice,
   sortShopEquipment,
-  type ShopPlaystyle,
   type ShopGearClientRow,
 } from "@/lib/game/shop";
 import { ItemHoverCard } from "@/components/item-hover-card";
@@ -161,8 +161,6 @@ export default async function ShopPage() {
     };
   });
   const effective = buildCharacterStats(character, equipment);
-  const classDefaultFilter: ShopPlaystyle =
-    character.class === "WARRIOR" ? "WARRIOR" : character.class === "MAGE" ? "MAGE" : "ROGUE";
   const marketPanelClass =
     "rounded-2xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 p-5 backdrop-blur-[1px]";
   const marketTitleClass = "text-[10px] font-bold uppercase tracking-widest text-white/80";
@@ -198,6 +196,7 @@ export default async function ShopPage() {
             combatLocked={false}
             returnToTownAction={returnToTownAction}
             returnToTownAndShopAction={returnToTownAndShopAction}
+            returnToTownAndMarketAction={returnToTownAndMarketAction}
           />
         </div>
         <div className="grid gap-4 lg:grid-cols-[minmax(16rem,1fr)_minmax(0,56rem)_minmax(16rem,1fr)] lg:items-start">
@@ -271,7 +270,6 @@ export default async function ShopPage() {
                       rows={gearRows}
                       buyAction={buyShopEquipmentAction}
                       equippedBySlot={equippedBySlot}
-                      defaultPlaystyle={classDefaultFilter}
                     />
                   </div>
                 )}

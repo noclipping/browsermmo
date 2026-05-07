@@ -10,6 +10,9 @@ const idSchema = z.string().cuid();
 function revalidateSocial() {
   revalidatePath("/friends");
   revalidatePath("/players");
+  revalidatePath("/social/directory");
+  revalidatePath("/social/friends");
+  revalidatePath("/social/requests");
 }
 
 export async function sendFriendRequestAction(formData: FormData): Promise<string | null> {

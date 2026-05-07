@@ -148,6 +148,7 @@ export async function updateCharacterBioAction(formData: FormData) {
 
   revalidatePath("/character");
   revalidatePath("/players");
+  revalidatePath("/social/directory");
   revalidatePath(`/player/${encodeURIComponent(character.name)}`);
   return null;
 }

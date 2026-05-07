@@ -4,6 +4,7 @@ import {
   consumeTonicOutsideCombatAction,
   restAtCampfireAction,
   returnToTownAction,
+  returnToTownAndMarketAction,
   returnToTownAndShopAction,
 } from "@/app/actions/game";
 import {
@@ -101,6 +102,7 @@ export default async function TownPage() {
             combatLocked={combatLocked}
             returnToTownAction={returnToTownAction}
             returnToTownAndShopAction={returnToTownAndShopAction}
+            returnToTownAndMarketAction={returnToTownAndMarketAction}
           />
         </div>
         <div className="grid gap-4 lg:grid-cols-[minmax(16rem,1fr)_minmax(0,56rem)_minmax(16rem,1fr)] lg:items-start">
@@ -251,11 +253,16 @@ export default async function TownPage() {
                 <TownDistrictSlice
                   emoji="🛒"
                   label="Market"
-                  hint="Buy common gear, crimson tonics, and smithing stones; sell spare pack gear. Prices scale with your recommended danger tier."
+                  hint="Global market: list and buy player items. Town shop: NPC gear, crimson tonics, and smithing stones; sell spare pack gear. Prices scale with your recommended danger tier."
                 >
-                  <Link href="/shop" className={sliceButtonClass}>
-                    Open market
-                  </Link>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Link href="/market" className={sliceButtonClass}>
+                      Open market
+                    </Link>
+                    <Link href="/shop" className={sliceButtonClass}>
+                      Town shop
+                    </Link>
+                  </div>
                 </TownDistrictSlice>
 
                 <TownDistrictSlice

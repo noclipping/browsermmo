@@ -40,6 +40,9 @@ function revalidateGuildPaths() {
   revalidatePath("/guild");
   revalidatePath("/friends");
   revalidatePath("/players");
+  revalidatePath("/social/directory");
+  revalidatePath("/social/friends");
+  revalidatePath("/social/requests");
 }
 
 async function getMyMembership(userId: string) {
@@ -155,8 +158,7 @@ export async function updateGuildEmojiAction(formData: FormData): Promise<string
     data: { emoji: emojiParsed.data },
   });
 
-  revalidatePath("/guild");
-  revalidatePath("/players");
+  revalidateGuildPaths();
   return null;
 }
 

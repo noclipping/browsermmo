@@ -5,6 +5,7 @@ import {
   forgeUpgradeAction,
   consumeTonicOutsideCombatAction,
   returnToTownAction,
+  returnToTownAndMarketAction,
   returnToTownAndShopAction,
 } from "@/app/actions/game";
 import { AdventureLoadoutPanel } from "@/components/adventure-loadout-panel";
@@ -125,6 +126,7 @@ export default async function ForgePage() {
             combatLocked={false}
             returnToTownAction={returnToTownAction}
             returnToTownAndShopAction={returnToTownAndShopAction}
+            returnToTownAndMarketAction={returnToTownAndMarketAction}
           />
         </div>
         <div className="grid gap-4 lg:grid-cols-[minmax(16rem,1fr)_minmax(0,56rem)_minmax(16rem,1fr)] lg:items-start">

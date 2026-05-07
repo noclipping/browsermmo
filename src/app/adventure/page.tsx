@@ -3,6 +3,7 @@ import {
   changeRegionAction,
   consumeTonicOutsideCombatAction,
   returnToTownAction,
+  returnToTownAndMarketAction,
   returnToTownAndShopAction,
 } from "@/app/actions/game";
 import { AchievementToastPostActionDrain } from "@/components/achievement-toast-post-action-drain";
@@ -104,6 +105,7 @@ export default async function AdventurePage({
             combatLocked={combatLocked}
             returnToTownAction={returnToTownAction}
             returnToTownAndShopAction={returnToTownAndShopAction}
+            returnToTownAndMarketAction={returnToTownAndMarketAction}
           />
 
           {debugAdventureFromServer ? (

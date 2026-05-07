@@ -29,6 +29,7 @@ export async function debugResetAllAchievementsAction(): Promise<void> {
 
   revalidatePath("/character");
   revalidatePath("/players");
+  revalidatePath("/social/directory");
   revalidatePath(`/player/${encodeURIComponent(character.name)}`);
 }
 
@@ -45,6 +46,7 @@ export async function equipAchievementTitleAction(achievementKey: string | null)
     });
     revalidatePath("/character");
     revalidatePath("/players");
+    revalidatePath("/social/directory");
     revalidatePath(`/player/${encodeURIComponent(character.name)}`);
     return { ok: true };
   }
@@ -75,6 +77,7 @@ export async function equipAchievementTitleAction(achievementKey: string | null)
 
   revalidatePath("/character");
   revalidatePath("/players");
+  revalidatePath("/social/directory");
   revalidatePath(`/player/${encodeURIComponent(character.name)}`);
   return { ok: true };
 }

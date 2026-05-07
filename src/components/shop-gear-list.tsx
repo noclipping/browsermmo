@@ -2,42 +2,44 @@
 
 import { ShopTransactionForm } from "@/components/shop-gold-fx";
 import { useMemo, useState } from "react";
-import type { ShopGearClientRow, ShopPlaystyle, ShopStatTag } from "@/lib/game/shop";
+import type { ShopGearClientRow } from "@/lib/game/shop";
 import type { ShopTransactionResult } from "@/lib/game/shop-transaction";
 import { ItemHoverCard } from "@/components/item-hover-card";
 import { rarityNameClass } from "@/lib/game/item-rarity-styles";
 import type { ItemTooltipFields } from "@/lib/game/item-tooltip-text";
 
-const CLASS_OPTIONS: { id: ShopPlaystyle; label: string }[] = [
-  { id: "WARRIOR", label: "Warrior" },
-  { id: "ROGUE", label: "Ranger" },
-  { id: "MAGE", label: "Mage" },
-  { id: "NEUTRAL", label: "Neutral / shared" },
-];
+const SLOT_FILTERS = ["ALL", "WEAPON", "HELMET", "CHEST", "GLOVES", "BOOTS", "RING", "AMULET", "CONSUMABLE"] as const;
+const RARITY_FILTERS = ["ALL", "COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "GODLY"] as const;
+const CLASS_FILTERS = ["ALL", "WARRIOR", "MAGE", "ROGUE"] as const;
 
-const STAT_OPTIONS: { id: ShopStatTag; label: string }[] = [
-  { id: "STR", label: "STR" },
-  { id: "DEX", label: "DEX" },
-  { id: "INT", label: "INT" },
-  { id: "CON", label: "CON" },
-];
+function prettyLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
 
-function subsetToggle<T extends string>(set: Set<T>, id: T, checked: boolean): Set<T> {
-  const n = new Set(set);
-  if (checked) n.add(id);
-  else n.delete(id);
-  return n;
+function itemClassType(item: {
+  requiredStrength: number;
+  requiredIntelligence: number;
+  requiredDexterity: number;
+}): "WARRIOR" | "MAGE" | "ROGUE" {
+  const str = item.requiredStrength ?? 0;
+  const intl = item.requiredIntelligence ?? 0;
+  const dex = item.requiredDexterity ?? 0;
+  if (intl >= dex && intl >= str && intl > 0) return "MAGE";
+  if (dex >= intl && dex >= str && dex > 0) return "ROGUE";
+  return "WARRIOR";
 }
 
 export function ShopGearList({
   rows,
   buyAction,
   equippedBySlot,
-  defaultPlaystyle,
 }: {
   rows: ShopGearClientRow[];
   buyAction: (formData: FormData) => Promise<ShopTransactionResult>;
-  defaultPlaystyle: ShopPlaystyle;
   equippedBySlot: Partial<
     Record<
       string,
@@ -56,57 +58,69 @@ export function ShopGearList({
     >
   >;
 }) {
-  const [classOn, setClassOn] = useState(() => new Set<ShopPlaystyle>([defaultPlaystyle]));
-  const [statOn, setStatOn] = useState(() => new Set<ShopStatTag>(["STR", "DEX", "INT", "CON"]));
+  const [slot, setSlot] = useState<(typeof SLOT_FILTERS)[number]>("ALL");
+  const [rarity, setRarity] = useState<(typeof RARITY_FILTERS)[number]>("ALL");
+  const [classType, setClassType] = useState<(typeof CLASS_FILTERS)[number]>("ALL");
 
-  const visible = useMemo(() => {
-    const classAll = classOn.size === 0 || classOn.size === CLASS_OPTIONS.length;
-    const statAll = statOn.size === 0 || statOn.size === STAT_OPTIONS.length;
-    return rows.filter((row) => {
-      if (!classAll && !classOn.has(row.playstyle)) return false;
-      if (statAll) return true;
-      if (row.statTags.length === 0) return true;
-      return row.statTags.some((t) => statOn.has(t));
-    });
-  }, [rows, classOn, statOn]);
+  const visible = useMemo(
+    () =>
+      rows.filter((row) => {
+        const { item } = row;
+        if (slot !== "ALL" && item.slot !== slot) return false;
+        if (rarity !== "ALL" && item.rarity !== rarity) return false;
+        if (classType !== "ALL" && itemClassType(item) !== classType) return false;
+        return true;
+      }),
+    [rows, slot, rarity, classType],
+  );
 
   return (
     <div>
-      <div className="mb-4 space-y-3 rounded-lg border border-white/20 bg-black/50 p-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-white/75">Filter by kit</p>
-          <div className="mt-2 flex flex-wrap gap-3">
-            {CLASS_OPTIONS.map((o) => (
-              <label key={o.id} className="flex cursor-pointer items-center gap-2 text-sm text-zinc-100">
-                <input
-                  type="checkbox"
-                  className="size-4 rounded border-zinc-500 bg-zinc-900"
-                  checked={classOn.has(o.id)}
-                  onChange={(e) => setClassOn(subsetToggle(classOn, o.id, e.target.checked))}
-                />
-                {o.label}
-              </label>
+      <div className="mb-4 flex flex-wrap items-end gap-2 rounded-lg border border-white/20 bg-black/35 px-3 py-2">
+        <label className="text-[11px] text-zinc-300">
+          Type
+          <select
+            value={slot}
+            onChange={(e) => setSlot(e.currentTarget.value as (typeof SLOT_FILTERS)[number])}
+            className="mt-1 block rounded border border-white/20 bg-black/55 px-2 py-1 text-xs text-zinc-100"
+          >
+            {SLOT_FILTERS.map((v) => (
+              <option key={v} value={v}>
+                {v === "ALL" ? "All types" : prettyLabel(v)}
+              </option>
             ))}
-          </div>
-        </div>
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-white/75">Filter by stat requirement</p>
-          <div className="mt-2 flex flex-wrap gap-3">
-            {STAT_OPTIONS.map((o) => (
-              <label key={o.id} className="flex cursor-pointer items-center gap-2 text-sm text-zinc-100">
-                <input
-                  type="checkbox"
-                  className="size-4 rounded border-zinc-500 bg-zinc-900"
-                  checked={statOn.has(o.id)}
-                  onChange={(e) => setStatOn(subsetToggle(statOn, o.id, e.target.checked))}
-                />
-                {o.label}
-              </label>
+          </select>
+        </label>
+        <label className="text-[11px] text-zinc-300">
+          Rarity
+          <select
+            value={rarity}
+            onChange={(e) => setRarity(e.currentTarget.value as (typeof RARITY_FILTERS)[number])}
+            className="mt-1 block rounded border border-white/20 bg-black/55 px-2 py-1 text-xs text-zinc-100"
+          >
+            {RARITY_FILTERS.map((v) => (
+              <option key={v} value={v}>
+                {v === "ALL" ? "All rarities" : prettyLabel(v)}
+              </option>
             ))}
-          </div>
-        </div>
-        <p className="text-xs text-zinc-300/90">
-          Showing {visible.length} of {rows.length} listings. Toggle kits and stat gates to widen or narrow stock.
+          </select>
+        </label>
+        <label className="text-[11px] text-zinc-300">
+          Class
+          <select
+            value={classType}
+            onChange={(e) => setClassType(e.currentTarget.value as (typeof CLASS_FILTERS)[number])}
+            className="mt-1 block rounded border border-white/20 bg-black/55 px-2 py-1 text-xs text-zinc-100"
+          >
+            {CLASS_FILTERS.map((v) => (
+              <option key={v} value={v}>
+                {v === "ALL" ? "All classes" : prettyLabel(v)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-xs text-zinc-400">
+          Showing {visible.length} / {rows.length}
         </p>
       </div>
 

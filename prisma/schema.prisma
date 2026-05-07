@@ -383,6 +383,7 @@ model Character {
   regionId       String
   region         Region               @relation(fields: [regionId], references: [id])
   inventoryItems InventoryItem[]
+  marketListings MarketListing[] @relation("MarketSeller")
   equipment      CharacterEquipment[]
   combatLogs     CombatLog[]
   soloCombats    SoloCombatEncounter[]
@@ -519,6 +520,7 @@ model Item {
   equipmentRefs CharacterEquipment[]
   lootEntries   LootTableEntry[]
   guildTreasuryStacks GuildTreasuryItem[]
+  marketListings        MarketListing[]
 }
 
 model InventoryItem {
@@ -543,6 +545,30 @@ model InventoryItem {
 
   @@unique([characterId, itemId, forgeLevel, affixPrefix, bonusLifeSteal, bonusCritChance, bonusSkillPower, bonusStrength, bonusConstitution, bonusIntelligence, bonusDexterity])
   @@index([characterId, itemId])
+}
+
+/** Escrowed stack listed on the global market (seller inventory row removed while ACTIVE). */
+model MarketListing {
+  id                String              @id @default(cuid())
+  sellerCharacterId String
+  sellerCharacter   Character           @relation("MarketSeller", fields: [sellerCharacterId], references: [id], onDelete: Cascade)
+  itemId            String
+  item              Item                @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  priceGold         Int
+  quantity          Int                 @default(1)
+  forgeLevel        Int                 @default(0)
+  affixPrefix       String?
+  bonusLifeSteal    Float               @default(0)
+  bonusCritChance   Float               @default(0)
+  bonusSkillPower   Float               @default(0)
+  bonusStrength     Int                 @default(0)
+  bonusConstitution Int                 @default(0)
+  bonusIntelligence Int                 @default(0)
+  bonusDexterity    Int                 @default(0)
+  createdAt         DateTime            @default(now())
+
+  @@index([createdAt])
+  @@index([sellerCharacterId])
 }
 
 model CharacterEquipment {

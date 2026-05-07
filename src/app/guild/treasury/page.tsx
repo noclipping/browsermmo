@@ -2,7 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { postGuildChatMessageAction } from "@/app/actions/guild";
 import { depositGuildTreasuryAction, withdrawGuildTreasuryAction } from "@/app/actions/guild-treasury";
-import { consumeTonicOutsideCombatAction, returnToTownAction, returnToTownAndShopAction } from "@/app/actions/game";
+import {
+  consumeTonicOutsideCombatAction,
+  returnToTownAction,
+  returnToTownAndMarketAction,
+  returnToTownAndShopAction,
+} from "@/app/actions/game";
 import { AdventureLoadoutPanel } from "@/components/adventure-loadout-panel";
 import { GameNav } from "@/components/game-nav";
 import { GameTopBar } from "@/components/game-top-bar";
@@ -122,6 +127,7 @@ export default async function GuildTreasuryPage({ searchParams }: TreasuryPagePr
             combatLocked={combatLocked}
             returnToTownAction={returnToTownAction}
             returnToTownAndShopAction={returnToTownAndShopAction}
+            returnToTownAndMarketAction={returnToTownAndMarketAction}
           />
         </div>
 

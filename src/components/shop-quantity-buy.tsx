@@ -34,7 +34,7 @@ export function ShopQuantityBuy({
 
   return (
     <ShopTransactionForm transactionAction={transactionAction} className="mt-3 space-y-2">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => setQuantity((q) => Math.max(1, q - 1))}
@@ -60,6 +60,15 @@ export function ShopQuantityBuy({
           className="h-8 w-8 rounded border border-white/20 bg-white/5 text-sm font-bold text-zinc-100 disabled:opacity-40"
         >
           +
+        </button>
+        <button
+          type="button"
+          onClick={() => setQuantity(Math.max(1, maxAllowed))}
+          disabled={disabled}
+          title={disabled ? undefined : `Set to ${maxAllowed} (limited by gold${maxQuantity != null ? " and carry cap" : ""})`}
+          className="h-8 shrink-0 rounded border border-amber-400/40 bg-amber-950/35 px-2 text-[11px] font-bold uppercase tracking-wide text-amber-100 enabled:hover:bg-amber-950/55 disabled:opacity-40"
+        >
+          Max
         </button>
         <span className="text-[11px] text-zinc-400">{hint}</span>
       </div>
