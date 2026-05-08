@@ -7,7 +7,7 @@ import { itemDisplayName } from "@/lib/game/item-display";
 import { characterMeetsItemStatRequirements, formatItemStatRequirements } from "@/lib/game/item-requirements";
 import { rarityNameClass } from "@/lib/game/item-rarity-styles";
 import type { Character, CharacterEquipment, InventoryItem, Item } from "@prisma/client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 const SLOT_FILTERS = ["ALL", "WEAPON", "HELMET", "CHEST", "GLOVES", "BOOTS", "RING", "AMULET"] as const;
@@ -47,15 +47,10 @@ export function LoadoutGearPack({
 }) {
   const [openFilters, setOpenFilters] = useState(false);
   const [openManager, setOpenManager] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [equippableOnly, setEquippableOnly] = useState(false);
   const [slot, setSlot] = useState<(typeof SLOT_FILTERS)[number]>("ALL");
   const [rarity, setRarity] = useState<(typeof RARITY_FILTERS)[number]>("ALL");
   const [classType, setClassType] = useState<(typeof CLASS_FILTERS)[number]>("ALL");
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const filtered = useMemo(
     () =>
@@ -204,7 +199,7 @@ export function LoadoutGearPack({
         {filtered.length === 0 ? <li className="text-xs text-zinc-500">No gear matches these filters.</li> : null}
       </ul>
 
-      {openManager && mounted
+      {openManager
         ? createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4" role="dialog" aria-modal="true">
             <div className="w-full max-w-6xl rounded-2xl border border-zinc-700 bg-zinc-950/95 p-4 shadow-2xl">

@@ -173,6 +173,8 @@ model GuildTreasuryItem {
   bonusLifeSteal Float  @default(0)
   bonusCritChance Float @default(0)
   bonusSkillPower Float @default(0)
+  bonusDefensePercent Float @default(0)
+  bonusConstitutionPercent Float @default(0)
   bonusStrength Int     @default(0)
   bonusConstitution Int @default(0)
   bonusIntelligence Int @default(0)
@@ -180,7 +182,7 @@ model GuildTreasuryItem {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([guildId, itemId, forgeLevel, affixPrefix, bonusLifeSteal, bonusCritChance, bonusSkillPower, bonusStrength, bonusConstitution, bonusIntelligence, bonusDexterity])
+  @@unique([guildId, itemId, forgeLevel, affixPrefix, bonusLifeSteal, bonusCritChance, bonusSkillPower, bonusDefensePercent, bonusConstitutionPercent, bonusStrength, bonusConstitution, bonusIntelligence, bonusDexterity])
   @@index([guildId])
 }
 
@@ -537,13 +539,15 @@ model InventoryItem {
   bonusLifeSteal Float  @default(0)
   bonusCritChance Float @default(0)
   bonusSkillPower Float @default(0)
+  bonusDefensePercent Float @default(0)
+  bonusConstitutionPercent Float @default(0)
   bonusStrength Int     @default(0)
   bonusConstitution Int @default(0)
   bonusIntelligence Int @default(0)
   bonusDexterity Int    @default(0)
   createdAt   DateTime  @default(now())
 
-  @@unique([characterId, itemId, forgeLevel, affixPrefix, bonusLifeSteal, bonusCritChance, bonusSkillPower, bonusStrength, bonusConstitution, bonusIntelligence, bonusDexterity])
+  @@unique([characterId, itemId, forgeLevel, affixPrefix, bonusLifeSteal, bonusCritChance, bonusSkillPower, bonusDefensePercent, bonusConstitutionPercent, bonusStrength, bonusConstitution, bonusIntelligence, bonusDexterity])
   @@index([characterId, itemId])
 }
 
@@ -561,6 +565,8 @@ model MarketListing {
   bonusLifeSteal    Float               @default(0)
   bonusCritChance   Float               @default(0)
   bonusSkillPower   Float               @default(0)
+  bonusDefensePercent Float             @default(0)
+  bonusConstitutionPercent Float        @default(0)
   bonusStrength     Int                 @default(0)
   bonusConstitution Int                 @default(0)
   bonusIntelligence Int                 @default(0)
@@ -584,6 +590,8 @@ model CharacterEquipment {
   bonusLifeSteal Float  @default(0)
   bonusCritChance Float @default(0)
   bonusSkillPower Float @default(0)
+  bonusDefensePercent Float @default(0)
+  bonusConstitutionPercent Float @default(0)
   bonusStrength Int     @default(0)
   bonusConstitution Int @default(0)
   bonusIntelligence Int @default(0)

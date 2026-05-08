@@ -58,10 +58,6 @@ export function GameNav({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [menuOpen]);
 
-  useEffect(() => {
-    closeMenu();
-  }, [pathname, closeMenu]);
-
   const townPill = () =>
     pathname === "/town" ? (
       <span className={`${pill} ${activeCls} cursor-default`} aria-current="page">

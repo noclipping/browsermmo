@@ -1,0 +1,1 @@
+ALTER TABLE "GuildMember" ALTER COLUMN "role" SET DEFAULT 'INITIATE'::"GuildRole";

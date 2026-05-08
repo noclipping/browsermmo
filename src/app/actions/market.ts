@@ -34,6 +34,8 @@ function listingRowToSnapshot(row: {
   bonusLifeSteal: number;
   bonusCritChance: number;
   bonusSkillPower: number;
+  bonusDefensePercent: number;
+  bonusConstitutionPercent: number;
   bonusStrength: number;
   bonusConstitution: number;
   bonusIntelligence: number;
@@ -47,6 +49,8 @@ function listingRowToSnapshot(row: {
     bonusLifeSteal: row.bonusLifeSteal,
     bonusCritChance: row.bonusCritChance,
     bonusSkillPower: row.bonusSkillPower,
+    bonusDefensePercent: row.bonusDefensePercent,
+    bonusConstitutionPercent: row.bonusConstitutionPercent,
     bonusStrength: row.bonusStrength,
     bonusConstitution: row.bonusConstitution,
     bonusIntelligence: row.bonusIntelligence,
@@ -99,6 +103,8 @@ export async function createMarketListingAction(formData: FormData): Promise<Sho
           bonusLifeSteal: inv.bonusLifeSteal,
           bonusCritChance: inv.bonusCritChance,
           bonusSkillPower: inv.bonusSkillPower,
+          bonusDefensePercent: inv.bonusDefensePercent,
+          bonusConstitutionPercent: inv.bonusConstitutionPercent,
           bonusStrength: inv.bonusStrength,
           bonusConstitution: inv.bonusConstitution,
           bonusIntelligence: inv.bonusIntelligence,

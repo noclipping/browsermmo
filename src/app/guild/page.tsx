@@ -23,6 +23,7 @@ import {
   returnToTownAndMarketAction,
   returnToTownAndShopAction,
 } from "@/app/actions/game";
+import { AnvilSfxLink } from "@/components/anvil-sfx-link";
 import { AdventureLoadoutPanel } from "@/components/adventure-loadout-panel";
 import { GameNav } from "@/components/game-nav";
 import { GameTopBar } from "@/components/game-top-bar";
@@ -320,12 +321,12 @@ export default async function GuildPage() {
               <section className="rounded-2xl border border-amber-900/40 bg-zinc-950/45 bg-linear-to-b from-amber-950/15 via-black/78 to-black/95 p-4 shadow-md backdrop-blur-[1px]">
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300/85">Guild treasury</p>
                 <p className="mt-1 text-xs text-zinc-500">Shared item bank — deposit pack gear and withdraw if you are at least Member rank.</p>
-                <Link
+                <AnvilSfxLink
                   href="/guild/treasury"
                   className="mt-3 inline-flex rounded-lg border border-amber-800/50 bg-amber-950/25 px-4 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-900/30"
                 >
                   Open treasury
-                </Link>
+                </AnvilSfxLink>
               </section>
             ) : null}
 

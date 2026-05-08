@@ -7,6 +7,8 @@ export type GearStoredAffixBonuses = {
   bonusLifeSteal: number;
   bonusCritChance: number;
   bonusSkillPower: number;
+  bonusDefensePercent: number;
+  bonusConstitutionPercent: number;
   bonusStrength: number;
   bonusConstitution: number;
   bonusIntelligence: number;
@@ -73,6 +75,8 @@ export function gearAffixBonusLine(
       bonusLifeSteal: stored.bonusLifeSteal,
       bonusCritChance: stored.bonusCritChance,
       bonusSkillPower: stored.bonusSkillPower,
+      bonusDefensePercent: stored.bonusDefensePercent,
+      bonusConstitutionPercent: stored.bonusConstitutionPercent,
       bonusStrength: stored.bonusStrength,
       bonusConstitution: stored.bonusConstitution,
       bonusIntelligence: stored.bonusIntelligence,
@@ -84,6 +88,8 @@ export function gearAffixBonusLine(
     scaled.bonusLifeSteal > 0 ? `Lifesteal +${(scaled.bonusLifeSteal * 100).toFixed(1)}%` : null,
     scaled.bonusCritChance > 0 ? `Crit +${(scaled.bonusCritChance * 100).toFixed(1)}%` : null,
     scaled.bonusSkillPower > 0 ? `Skill power +${(scaled.bonusSkillPower * 100).toFixed(1)}%` : null,
+    scaled.bonusDefensePercent > 0 ? `Defense +${(scaled.bonusDefensePercent * 100).toFixed(1)}%` : null,
+    scaled.bonusConstitutionPercent > 0 ? `Constitution +${(scaled.bonusConstitutionPercent * 100).toFixed(1)}%` : null,
     scaled.bonusStrength > 0 ? `STR +${scaled.bonusStrength}` : null,
     scaled.bonusConstitution > 0 ? `CON +${scaled.bonusConstitution}` : null,
     scaled.bonusIntelligence > 0 ? `INT +${scaled.bonusIntelligence}` : null,

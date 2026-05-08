@@ -31,28 +31,15 @@ export async function trySpawnNextGuildBossIfReady(db: Db, guildId: string): Pro
 
   const now = Date.now();
 
+  const guild = await db.guild.findUnique({ where: { id: guildId } });
+  if (!guild) throw new Error("Guild not found");
+
   if (lastDefeated) {
     if (lastDefeated.nextSpawnAt && lastDefeated.nextSpawnAt.getTime() > now) {
       return;
     }
-
-    const memberCount = await db.guildMember.count({ where: { guildId } });
-    const maxHp = computeSeasonMaxHp(lastDefeated.bossKey, memberCount);
-    await db.guildBossSeason.create({
-      data: {
-        guildId,
-        bossKey: lastDefeated.bossKey,
-        maxHp,
-        currentHp: maxHp,
-        memberCountAtStart: memberCount,
-        status: "ACTIVE",
-      },
-    });
-    return;
   }
 
-  const guild = await db.guild.findUnique({ where: { id: guildId } });
-  if (!guild) throw new Error("Guild not found");
   const level = getGuildLevelFromXp(guild.xp);
   const boss = highestUnlockedBoss(level);
   if (!boss) throw new Error("No guild boss unlocked for this guild level");

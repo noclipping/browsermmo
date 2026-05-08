@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- effects fold server / useActionState results into UI state */
+
 import {
   combatTurnAction,
   fleeCombatAction,
@@ -12,6 +14,8 @@ import { useSfx } from "@/components/sfx-provider";
 import type { EnemyKind, SoloEncounterStartJson } from "@/lib/game/start-encounter";
 import { rarityNameClass } from "@/lib/game/item-rarity-styles";
 import { emitAchievementToasts } from "@/lib/achievement-toast-events";
+import type { AchievementToastItem } from "@/lib/achievement-toast-types";
+import { levelUpToastItem } from "@/lib/level-up-toast";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { MAX_POTIONS_PER_BATTLE, STAT_POINTS_PER_LEVEL } from "@/lib/game/constants";
@@ -27,6 +31,16 @@ type DroppedItemPayload = {
   rarity: string;
   slot: string | null;
   description: string;
+  affixPrefix?: string | null;
+  bonusLifeSteal?: number;
+  bonusCritChance?: number;
+  bonusSkillPower?: number;
+  bonusDefensePercent?: number;
+  bonusConstitutionPercent?: number;
+  bonusStrength?: number;
+  bonusConstitution?: number;
+  bonusIntelligence?: number;
+  bonusDexterity?: number;
   attack: number;
   defense: number;
   hp: number;
@@ -59,28 +73,6 @@ type StartPayload = {
   fleeChance?: number;
 };
 
-type ActivePayload = {
-  status: "ACTIVE";
-  round: number;
-  enemyIntent: EnemyIntentKey;
-  enemyKind: EnemyKind;
-  player: { hp: number; maxHp: number };
-  enemy: { name: string; emoji: string; level: number; hp: number; maxHp: number };
-  log: string[];
-  potionCount: number;
-  potionCooldownRemaining: number;
-  potionMaxCooldown: number;
-  skillCooldownRemaining: number;
-  skillMaxCooldown: number;
-  skillName: string;
-  skillEmoji: string;
-  playerMana?: number;
-  playerMaxMana?: number;
-  fleeChance?: number;
-};
-
-type AchievementToastPayload = { key: string; name: string; description: string; icon: string };
-
 type EndedPayload = {
   status: "ENDED";
   outcome: "VICTORY" | "DEFEAT" | "FLED";
@@ -93,10 +85,12 @@ type EndedPayload = {
   droppedItems?: DroppedItemPayload[];
   /** True when a level-up occurred (victory or defeat). */
   leveled?: boolean;
+  /** Level after XP when `leveled` is true (solo combat payloads). */
+  levelAfter?: number;
   goldLost?: number;
   finalHp?: number;
   returnedToTown?: boolean;
-  achievementToasts?: AchievementToastPayload[];
+  achievementToasts?: AchievementToastItem[];
 };
 
 type CombatFxTone = "damage" | "heal" | "defend" | "flee";
@@ -323,6 +317,52 @@ export function TurnCombatArena({
     return "ATTACK";
   };
 
+  const spawnFx = (params: Omit<CombatFx, "id">) => {
+    const id = fxIdRef.current;
+    fxIdRef.current += 1;
+    setCombatFx((prev) => [...prev, { id, ...params }]);
+    window.setTimeout(() => {
+      setCombatFx((prev) => prev.filter((fx) => fx.id !== id));
+    }, 850);
+  };
+
+  const flashTint = (tone: CombatTintTone) => {
+    if (tintTimerRef.current) {
+      window.clearTimeout(tintTimerRef.current);
+    }
+    setCombatTint(tone);
+    tintTimerRef.current = window.setTimeout(() => {
+      setCombatTint(null);
+      tintTimerRef.current = null;
+    }, 260);
+  };
+
+  const applyCombatStart = (data: StartPayload) => {
+    setEncounterId(data.encounterId);
+    setRound(data.round);
+    setPlayerHp(data.player.hp);
+    setPlayerMax(data.player.maxHp);
+    setEnemyHp(data.enemy.hp);
+    setEnemyMax(data.enemy.maxHp);
+    setEnemyName(data.enemy.name);
+    setEnemyEmoji(data.enemy.emoji);
+    setEnemyLevel(data.enemy.level);
+    setEnemyKind(data.enemyKind ?? "normal");
+    setEnemyIntent(data.enemyIntent as EnemyIntentKey);
+    setLog(data.log);
+    setPotionCount(data.potionCount);
+    setPotionCooldownRemaining(data.potionCooldownRemaining);
+    setPotionMaxCooldown(data.potionMaxCooldown);
+    setSkillCooldownRemaining(data.skillCooldownRemaining);
+    setSkillMaxCooldown(data.skillMaxCooldown);
+    setSkillName(data.skillName);
+    setSkillEmoji(data.skillEmoji);
+    setPlayerMana(data.playerMana ?? playerMana);
+    setPlayerMaxMana(data.playerMaxMana ?? playerMaxMana);
+    setFleeChance(data.fleeChance ?? fleeChance);
+    setPhase("fight");
+  };
+
   useEffect(() => {
     const el = logScrollRef.current;
     if (!el) return;
@@ -394,6 +434,7 @@ export function TurnCombatArena({
         pushAdventureDebug(`outcome=EVENT (${payload.event.kind}): awaiting choice`);
       } else if (payload.outcome === "QUICK_GOLD") {
         setHubLines(payload.log);
+        if (payload.amount > 0) playSfx("coin");
         pushAdventureDebug("outcome=QUICK_GOLD (action): show hubLines (no immediate refresh)");
       } else if (payload.outcome === "QUICK_POTION") {
         setHubLines(payload.log);
@@ -406,7 +447,7 @@ export function TurnCombatArena({
       }
       setBusy(false);
     })();
-  }, [rollState]);
+  }, [rollState, playSfx]);
 
   useEffect(() => {
     if (!eventChoiceState) return;
@@ -417,11 +458,16 @@ export function TurnCombatArena({
     const payload = eventChoiceState.payload;
     if (payload.outcome === "QUICK_GOLD" || payload.outcome === "QUICK_POTION" || payload.outcome === "QUICK_XP") {
       setHubLines(payload.log);
+      if (payload.outcome === "QUICK_GOLD" && payload.amount > 0) playSfx("coin");
+      if (payload.outcome === "QUICK_XP" && payload.leveled && payload.newLevel != null) {
+        playSfx("levelup");
+        emitAchievementToasts([levelUpToastItem(payload.newLevel)]);
+      }
       setPendingEvent(null);
       setError(null);
       refreshPreservingScroll();
     }
-  }, [eventChoiceState]);
+  }, [eventChoiceState, playSfx]);
 
   useEffect(() => {
     if (!turnState) return;
@@ -492,9 +538,13 @@ export function TurnCombatArena({
         flashTint("defend");
       }
     } else {
-      if (data.achievementToasts?.length) {
-        emitAchievementToasts(data.achievementToasts);
+      const toastQueue: AchievementToastItem[] = [];
+      if (data.leveled && typeof data.levelAfter === "number") {
+        playSfx("levelup");
+        toastQueue.push(levelUpToastItem(data.levelAfter));
       }
+      if (data.achievementToasts?.length) toastQueue.push(...data.achievementToasts);
+      if (toastQueue.length) emitAchievementToasts(toastQueue);
       setEnded(data);
       setLog(data.log);
       setPotionCount(data.potionCount);
@@ -522,9 +572,8 @@ export function TurnCombatArena({
         });
         flashTint("defend");
       }
-      if (data.outcome === "VICTORY") {
-        playSfx("loot");
-        if (data.leveled) playSfx("level-up");
+      if (data.outcome === "VICTORY" && data.goldGained && data.goldGained > 0) {
+        playSfx("coin");
       }
     }
     setError(null);
@@ -580,52 +629,6 @@ export function TurnCombatArena({
     setError(null);
     router.refresh();
   }, [fleeState, log, round, potionCount, playerMax, router]);
-
-  const spawnFx = (params: Omit<CombatFx, "id">) => {
-    const id = fxIdRef.current;
-    fxIdRef.current += 1;
-    setCombatFx((prev) => [...prev, { id, ...params }]);
-    window.setTimeout(() => {
-      setCombatFx((prev) => prev.filter((fx) => fx.id !== id));
-    }, 850);
-  };
-
-  const flashTint = (tone: CombatTintTone) => {
-    if (tintTimerRef.current) {
-      window.clearTimeout(tintTimerRef.current);
-    }
-    setCombatTint(tone);
-    tintTimerRef.current = window.setTimeout(() => {
-      setCombatTint(null);
-      tintTimerRef.current = null;
-    }, 260);
-  };
-
-  const applyCombatStart = (data: StartPayload) => {
-    setEncounterId(data.encounterId);
-    setRound(data.round);
-    setPlayerHp(data.player.hp);
-    setPlayerMax(data.player.maxHp);
-    setEnemyHp(data.enemy.hp);
-    setEnemyMax(data.enemy.maxHp);
-    setEnemyName(data.enemy.name);
-    setEnemyEmoji(data.enemy.emoji);
-    setEnemyLevel(data.enemy.level);
-    setEnemyKind(data.enemyKind ?? "normal");
-    setEnemyIntent(data.enemyIntent as EnemyIntentKey);
-    setLog(data.log);
-    setPotionCount(data.potionCount);
-    setPotionCooldownRemaining(data.potionCooldownRemaining);
-    setPotionMaxCooldown(data.potionMaxCooldown);
-    setSkillCooldownRemaining(data.skillCooldownRemaining);
-    setSkillMaxCooldown(data.skillMaxCooldown);
-    setSkillName(data.skillName);
-    setSkillEmoji(data.skillEmoji);
-    setPlayerMana(data.playerMana ?? playerMana);
-    setPlayerMaxMana(data.playerMaxMana ?? playerMaxMana);
-    setFleeChance(data.fleeChance ?? fleeChance);
-    setPhase("fight");
-  };
 
   const shouldHydrateResume =
     !!resumeCombat &&
@@ -699,6 +702,10 @@ export function TurnCombatArena({
       }
       if (phase === "fight" && encounterId) {
         const action = chooseAutoCombatAction();
+        if (action === "ATTACK") playSfx("attack");
+        else if (action === "DEFEND") playSfx("defend");
+        else if (action === "SKILL") playSfx("skill");
+        else if (action === "POTION") playSfx("potion");
         if (autoTurnActionInputRef.current) autoTurnActionInputRef.current.value = action;
         if (autoTurnEncounterInputRef.current) autoTurnEncounterInputRef.current.value = encounterId;
         autoTurnFormRef.current?.requestSubmit();
@@ -728,6 +735,7 @@ export function TurnCombatArena({
     playerHp,
     playerMax,
     skillCooldownRemaining,
+    playSfx,
   ]);
 
   return (
@@ -890,6 +898,9 @@ export function TurnCombatArena({
                 <button
                   type="submit"
                   aria-busy={busy || isRollPending}
+                  onClick={() => {
+                    if (!(busy || isRollPending)) playSfx("adventure");
+                  }}
                   className={`w-full touch-manipulation rounded-xl border-2 border-white/35 bg-linear-to-b from-zinc-900/95 to-black py-4 text-center text-base font-bold uppercase tracking-[0.15em] text-zinc-100 shadow-lg hover:border-white/50 hover:from-zinc-800 hover:to-zinc-950 active:bg-black sm:py-5 sm:text-lg ${busy || isRollPending ? "cursor-wait opacity-55" : "cursor-pointer opacity-100"}`}
                 >
                   {busy || isRollPending ? "Rolling encounter…" : "Adventure"}
@@ -1009,7 +1020,7 @@ export function TurnCombatArena({
                   value="DEFEND"
                   disabled={combatFormBusy || !encounterId}
                 className="min-h-12 w-full cursor-pointer touch-manipulation rounded-lg border border-sky-900/50 bg-sky-950/50 px-2 py-3 text-sm font-bold text-sky-100 hover:bg-sky-900/40 disabled:opacity-50"
-                  onClick={() => playSfx("ui-click")}
+                  onClick={() => playSfx("defend")}
               >
                 Defend
               </button>
@@ -1022,7 +1033,7 @@ export function TurnCombatArena({
                   value="SKILL"
                   disabled={combatFormBusy || !encounterId || skillCooldownRemaining > 0}
                 className="min-h-12 w-full cursor-pointer touch-manipulation rounded-lg border border-violet-900/50 bg-violet-950/45 px-2 py-3 text-sm font-bold text-violet-100 hover:bg-violet-900/35 disabled:opacity-50"
-                  onClick={() => playSfx("ui-click")}
+                  onClick={() => playSfx("skill")}
                 title={
                   skillCooldownRemaining > 0
                     ? `Skill recharges in ${skillCooldownRemaining} turn(s).`
@@ -1053,7 +1064,7 @@ export function TurnCombatArena({
                       : "Drink a tonic (starts cooldown)."
                 }
                 className="min-h-12 w-full cursor-pointer touch-manipulation rounded-lg border border-emerald-900/50 bg-emerald-950/40 px-2 py-3 text-sm font-bold text-emerald-100 hover:bg-emerald-900/35 disabled:opacity-50"
-                  onClick={() => playSfx("ui-click")}
+                  onClick={() => playSfx("potion")}
               >
                 Use potion
                 {potionCooldownRemaining > 0 ? (
@@ -1071,7 +1082,6 @@ export function TurnCombatArena({
                   value="AUTO"
                   disabled={combatFormBusy || !encounterId}
                 className="min-h-12 w-full cursor-pointer touch-manipulation rounded-lg border border-amber-800/60 bg-amber-950/30 px-2 py-3 text-sm font-bold text-amber-100 hover:bg-amber-900/25 disabled:opacity-50"
-                  onClick={() => playSfx("ui-click")}
               >
                 Auto battle
               </button>
@@ -1127,7 +1137,19 @@ export function TurnCombatArena({
                         {ended.droppedItems!.map((it) => (
                           <li key={it.id} className="text-sm">
                             {it.slot ? (
-                              <ItemHoverCard item={it as unknown as Parameters<typeof ItemHoverCard>[0]["item"]}>
+                              <ItemHoverCard
+                                item={it as unknown as Parameters<typeof ItemHoverCard>[0]["item"]}
+                                affixPrefix={it.affixPrefix ?? null}
+                                bonusLifeSteal={it.bonusLifeSteal ?? 0}
+                                bonusCritChance={it.bonusCritChance ?? 0}
+                                bonusSkillPower={it.bonusSkillPower ?? 0}
+                                bonusDefensePercent={it.bonusDefensePercent ?? 0}
+                                bonusConstitutionPercent={it.bonusConstitutionPercent ?? 0}
+                                bonusStrength={it.bonusStrength ?? 0}
+                                bonusConstitution={it.bonusConstitution ?? 0}
+                                bonusIntelligence={it.bonusIntelligence ?? 0}
+                                bonusDexterity={it.bonusDexterity ?? 0}
+                              >
                                 <span className={`font-semibold ${rarityNameClass(it.rarity)}`}>
                                   {it.emoji} {it.name}
                                 </span>
@@ -1211,6 +1233,9 @@ export function TurnCombatArena({
                   <button
                     type="submit"
                     aria-busy={busy || isRollPending}
+                    onClick={() => {
+                      if (!(busy || isRollPending)) playSfx("adventure");
+                    }}
                     className={`min-h-11 touch-manipulation rounded-lg border border-amber-800 bg-amber-950/40 px-6 py-3 text-sm font-bold text-amber-100 hover:bg-amber-900/40 ${busy || isRollPending ? "cursor-wait opacity-55" : "cursor-pointer opacity-100"}`}
                   >
                     Continue adventuring

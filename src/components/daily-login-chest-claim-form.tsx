@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { claimDailyLoginChestStateAction, type DailyLoginChestClaimResult } from "@/app/actions/daily-login-chest";
 import { ItemHoverCard } from "@/components/item-hover-card";
@@ -29,9 +29,7 @@ export function DailyLoginChestClaimForm({ buttonClassName }: { buttonClassName:
   const [result, setResult] = useState<DailyLoginChestClaimResult | null>(null);
   const [hidden, setHidden] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [mounted, setMounted] = useState(false);
   const open = !!result?.ok && !hidden;
-  useEffect(() => setMounted(true), []);
 
   return (
     <>
@@ -51,7 +49,7 @@ export function DailyLoginChestClaimForm({ buttonClassName }: { buttonClassName:
 
       {result && !result.ok ? <p className="mt-2 text-xs text-rose-300/90">{result.message}</p> : null}
 
-      {open && mounted
+      {open
         ? createPortal(
           <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/70 px-4 py-6">
             <div className="flex max-h-[88vh] w-full max-w-md flex-col rounded-xl border border-amber-700/60 bg-zinc-950 p-4 shadow-[0_0_35px_rgba(180,83,9,0.35)]">

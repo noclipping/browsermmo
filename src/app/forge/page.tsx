@@ -8,6 +8,7 @@ import {
   returnToTownAndMarketAction,
   returnToTownAndShopAction,
 } from "@/app/actions/game";
+import { AnvilSfxButton } from "@/components/anvil-sfx-button";
 import { AdventureLoadoutPanel } from "@/components/adventure-loadout-panel";
 import { GameNav } from "@/components/game-nav";
 import { ShopGoldFxRoot, ShopTransactionForm } from "@/components/shop-gold-fx";
@@ -46,6 +47,8 @@ function storedAffix(entry: CharacterEquipment) {
     bonusLifeSteal: entry.bonusLifeSteal ?? 0,
     bonusCritChance: entry.bonusCritChance ?? 0,
     bonusSkillPower: entry.bonusSkillPower ?? 0,
+    bonusDefensePercent: entry.bonusDefensePercent ?? 0,
+    bonusConstitutionPercent: entry.bonusConstitutionPercent ?? 0,
     bonusStrength: entry.bonusStrength ?? 0,
     bonusConstitution: entry.bonusConstitution ?? 0,
     bonusIntelligence: entry.bonusIntelligence ?? 0,
@@ -254,7 +257,7 @@ export default async function ForgePage() {
                     </div>
                     <form action={forgeUpgradeAction} className="mt-4">
                       <input type="hidden" name="slot" value={slot} />
-                      <button
+                      <AnvilSfxButton
                         type="submit"
                         disabled={forgeBlocked}
                         title={disabledReason}
@@ -265,7 +268,7 @@ export default async function ForgePage() {
                           : `Forge (+${currentForge} → +${currentForge + 1} · ${stonesRequired} stone${
                               stonesRequired > 1 ? "s" : ""
                             } · ${FORGE_UPGRADE_GOLD_COST}g)`}
-                      </button>
+                      </AnvilSfxButton>
                     </form>
                   </article>
                 );

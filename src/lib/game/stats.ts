@@ -60,6 +60,8 @@ export function buildCharacterStats(character: Character, equipment: Equipped[])
           bonusLifeSteal: entry.bonusLifeSteal ?? 0,
           bonusCritChance: entry.bonusCritChance ?? 0,
           bonusSkillPower: entry.bonusSkillPower ?? 0,
+          bonusDefensePercent: entry.bonusDefensePercent ?? 0,
+          bonusConstitutionPercent: entry.bonusConstitutionPercent ?? 0,
           bonusStrength: entry.bonusStrength ?? 0,
           bonusConstitution: entry.bonusConstitution ?? 0,
           bonusIntelligence: entry.bonusIntelligence ?? 0,
@@ -70,6 +72,8 @@ export function buildCharacterStats(character: Character, equipment: Equipped[])
       acc.lifeSteal += affix.bonusLifeSteal;
       acc.crit += affix.bonusCritChance;
       acc.skillPower += affix.bonusSkillPower;
+      acc.defensePercent += affix.bonusDefensePercent;
+      acc.constitutionPercent += affix.bonusConstitutionPercent;
       acc.strength += affix.bonusStrength;
       acc.constitution += affix.bonusConstitution;
       acc.intelligence += affix.bonusIntelligence;
@@ -83,6 +87,8 @@ export function buildCharacterStats(character: Character, equipment: Equipped[])
       lifeSteal: 0,
       crit: 0,
       skillPower: 0,
+      defensePercent: 0,
+      constitutionPercent: 0,
       strength: 0,
       constitution: 0,
       intelligence: 0,
@@ -90,7 +96,8 @@ export function buildCharacterStats(character: Character, equipment: Equipped[])
     },
   );
 
-  const con = character.constitution + gear.constitution;
+  const baseCon = character.constitution + gear.constitution;
+  const con = Math.max(0, Math.floor(baseCon * (1 + gear.constitutionPercent)));
   const str = character.strength + gear.strength;
   const intl = character.intelligence + gear.intelligence;
   const dex = character.dexterity + gear.dexterity;
@@ -106,7 +113,7 @@ export function buildCharacterStats(character: Character, equipment: Equipped[])
     meleeAttack: character.attack + gear.attack + fromStrAtk,
     rangedAttack: character.attack + gear.attack + fromDexRangedAtk,
     magicAttack: character.attack + gear.attack + fromIntMagicAtk,
-    defense: character.defense + gear.defense,
+    defense: Math.max(0, Math.floor((character.defense + gear.defense) * (1 + gear.defensePercent))),
     maxMana: Math.max(0, intl * INT_MANA_PER_POINT),
     critChance: Math.min(MAX_CRIT_FROM_STATS, character.critChance + critBonus + gear.crit),
     lifeSteal: Math.max(0, gear.lifeSteal),

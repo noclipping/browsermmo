@@ -1,5 +1,6 @@
 "use client";
 
+import { useSfx } from "@/components/sfx-provider";
 import { useEffect, useState } from "react";
 
 function formatMmSs(totalSec: number): string {
@@ -23,6 +24,7 @@ export function CampfireRestButton({
   /** Omit footnote copy (e.g. town hub horizontal slices). */
   compact?: boolean;
 }) {
+  const { playSfx } = useSfx();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -41,6 +43,9 @@ export function CampfireRestButton({
         <button
           type="submit"
           disabled={disabled}
+          onClick={() => {
+            if (!disabled) playSfx("campfire");
+          }}
           className="rounded-lg border border-white/20 bg-black/55 px-4 py-2 text-sm font-semibold text-zinc-100 enabled:hover:border-white/35 enabled:hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {atFullHp ? "Already at full HP" : onCooldown ? `Rest ready in ${formatMmSs(waitSec)}` : "Rest at campfire (free)"}

@@ -40,7 +40,7 @@ export type AdventureStartSuccessBody =
   | { outcome: "EVENT"; event: AdventureEventPayload; log: string[] }
   | { outcome: "QUICK_GOLD"; amount: number; log: string[] }
   | { outcome: "QUICK_POTION"; log: string[] }
-  | { outcome: "QUICK_XP"; amount: number; leveled: boolean; log: string[] };
+  | { outcome: "QUICK_XP"; amount: number; leveled: boolean; newLevel?: number; log: string[] };
 
 export type AdventureStartExecuteResult =
   | { ok: true; body: AdventureStartSuccessBody }
@@ -75,7 +75,7 @@ async function applyOutOfCombatXp(character: Character, amount: number) {
         : {}),
     },
   });
-  return { leveled: levelsGained > 0 };
+  return { leveled: levelsGained > 0, newLevel: progressed.level };
 }
 
 function eventPayloadFor(kind: AdventureEventKind): AdventureEventPayload {
@@ -149,6 +149,8 @@ export async function executeAdventureEventChoice(params: {
         bonusLifeSteal: 0,
         bonusCritChance: 0,
         bonusSkillPower: 0,
+        bonusDefensePercent: 0,
+        bonusConstitutionPercent: 0,
         bonusStrength: 0,
         bonusConstitution: 0,
         bonusIntelligence: 0,
@@ -235,7 +237,7 @@ export async function executeAdventureEventChoice(params: {
 
   if (Math.random() < 0.64) {
     const amount = scaleXpGain(rollXpAmount(region.key) * 2);
-    const { leveled } = await applyOutOfCombatXp(params.character, amount);
+    const { leveled, newLevel } = await applyOutOfCombatXp(params.character, amount);
     revalidatePath("/town", "layout");
     return {
       ok: true,
@@ -243,6 +245,7 @@ export async function executeAdventureEventChoice(params: {
         outcome: "QUICK_XP",
         amount,
         leveled,
+        newLevel,
         log: [
           baseLine,
           risk

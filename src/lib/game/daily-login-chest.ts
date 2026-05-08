@@ -42,7 +42,7 @@ export function computeDailyLoginClaim(params: {
 }): DailyClaimComputeOk | DailyClaimComputeErr {
   const today = startOfUtcDay(params.now);
   const last = params.lastClaimDate ? startOfUtcDay(params.lastClaimDate) : null;
-  let next = Math.max(1, Math.min(7, Math.floor(params.nextStreakDay)));
+  const next = Math.max(1, Math.min(7, Math.floor(params.nextStreakDay)));
 
   if (last && last.getTime() === today.getTime()) {
     return { ok: false, code: "already_claimed" };

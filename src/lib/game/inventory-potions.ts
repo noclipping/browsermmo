@@ -17,6 +17,8 @@ export async function addItemQuantityCapped(
     bonusLifeSteal: 0,
     bonusCritChance: 0,
     bonusSkillPower: 0,
+    bonusDefensePercent: 0,
+    bonusConstitutionPercent: 0,
     bonusStrength: 0,
     bonusConstitution: 0,
     bonusIntelligence: 0,

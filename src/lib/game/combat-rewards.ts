@@ -29,13 +29,14 @@ export function buildVictoryCharacterUpdate(
   postFightHp: number,
   xpGained: number,
   goldGained: number,
-): { data: Prisma.CharacterUpdateInput; leveled: boolean } {
+): { data: Prisma.CharacterUpdateInput; leveled: boolean; levelAfter: number } {
   const progression = applyXp(character.level, character.xp, xpGained);
   const leveled = progression.level > character.level;
   const newMaxHp = leveled ? character.maxHp + LEVEL_UP_MAX_HP : character.maxHp;
   const hpAfter = leveled ? Math.min(postFightHp + LEVEL_UP_HP_BUMP, newMaxHp) : Math.min(postFightHp, newMaxHp);
   return {
     leveled,
+    levelAfter: progression.level,
     data: {
       xp: progression.xp,
       level: progression.level,

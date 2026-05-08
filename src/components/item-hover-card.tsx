@@ -17,6 +17,8 @@ type CompareTarget = {
   bonusLifeSteal?: number;
   bonusCritChance?: number;
   bonusSkillPower?: number;
+  bonusDefensePercent?: number;
+  bonusConstitutionPercent?: number;
   bonusStrength?: number;
   bonusConstitution?: number;
   bonusIntelligence?: number;
@@ -30,6 +32,8 @@ type Props = {
   bonusLifeSteal?: number;
   bonusCritChance?: number;
   bonusSkillPower?: number;
+  bonusDefensePercent?: number;
+  bonusConstitutionPercent?: number;
   bonusStrength?: number;
   bonusConstitution?: number;
   bonusIntelligence?: number;
@@ -47,6 +51,8 @@ type CombinedStats = {
   lifeSteal: number;
   critChance: number;
   skillPower: number;
+  defensePercent: number;
+  constitutionPercent: number;
   strength: number;
   constitution: number;
   intelligence: number;
@@ -59,6 +65,8 @@ function buildCombinedStats(params: {
   bonusLifeSteal: number;
   bonusCritChance: number;
   bonusSkillPower: number;
+  bonusDefensePercent: number;
+  bonusConstitutionPercent: number;
   bonusStrength: number;
   bonusConstitution: number;
   bonusIntelligence: number;
@@ -74,6 +82,8 @@ function buildCombinedStats(params: {
       bonusLifeSteal: params.bonusLifeSteal,
       bonusCritChance: params.bonusCritChance,
       bonusSkillPower: params.bonusSkillPower,
+      bonusDefensePercent: params.bonusDefensePercent,
+      bonusConstitutionPercent: params.bonusConstitutionPercent,
       bonusStrength: params.bonusStrength,
       bonusConstitution: params.bonusConstitution,
       bonusIntelligence: params.bonusIntelligence,
@@ -96,6 +106,8 @@ function buildCombinedStats(params: {
     lifeSteal: affix.bonusLifeSteal,
     critChance: affix.bonusCritChance,
     skillPower: affix.bonusSkillPower,
+    defensePercent: affix.bonusDefensePercent,
+    constitutionPercent: affix.bonusConstitutionPercent,
     strength: affix.bonusStrength + strFromDagger,
     constitution: affix.bonusConstitution,
     intelligence: affix.bonusIntelligence + (magicWeapon ? offense : 0),
@@ -122,6 +134,8 @@ export function ItemHoverCard({
   bonusLifeSteal = 0,
   bonusCritChance = 0,
   bonusSkillPower = 0,
+  bonusDefensePercent = 0,
+  bonusConstitutionPercent = 0,
   bonusStrength = 0,
   bonusConstitution = 0,
   bonusIntelligence = 0,
@@ -138,6 +152,8 @@ export function ItemHoverCard({
           bonusLifeSteal,
           bonusCritChance,
           bonusSkillPower,
+          bonusDefensePercent,
+          bonusConstitutionPercent,
           bonusStrength,
           bonusConstitution,
           bonusIntelligence,
@@ -151,6 +167,8 @@ export function ItemHoverCard({
       bonusLifeSteal,
       bonusCritChance,
       bonusSkillPower,
+      bonusDefensePercent,
+      bonusConstitutionPercent,
       bonusStrength,
       bonusConstitution,
       bonusIntelligence,
@@ -167,6 +185,8 @@ export function ItemHoverCard({
     scaledAffix.bonusLifeSteal > 0 ? `Lifesteal +${(scaledAffix.bonusLifeSteal * 100).toFixed(1)}%` : null,
     scaledAffix.bonusCritChance > 0 ? `Crit +${(scaledAffix.bonusCritChance * 100).toFixed(1)}%` : null,
     scaledAffix.bonusSkillPower > 0 ? `Skill power +${(scaledAffix.bonusSkillPower * 100).toFixed(1)}%` : null,
+    scaledAffix.bonusDefensePercent > 0 ? `Defense +${(scaledAffix.bonusDefensePercent * 100).toFixed(1)}%` : null,
+    scaledAffix.bonusConstitutionPercent > 0 ? `Constitution +${(scaledAffix.bonusConstitutionPercent * 100).toFixed(1)}%` : null,
     scaledAffix.bonusStrength > 0 ? `STR +${scaledAffix.bonusStrength}` : null,
     scaledAffix.bonusConstitution > 0 ? `CON +${scaledAffix.bonusConstitution}` : null,
     scaledAffix.bonusIntelligence > 0 ? `INT +${scaledAffix.bonusIntelligence}` : null,
@@ -180,6 +200,8 @@ export function ItemHoverCard({
         bonusLifeSteal,
         bonusCritChance,
         bonusSkillPower,
+        bonusDefensePercent,
+        bonusConstitutionPercent,
         bonusStrength,
         bonusConstitution,
         bonusIntelligence,
@@ -191,6 +213,8 @@ export function ItemHoverCard({
       bonusLifeSteal,
       bonusCritChance,
       bonusSkillPower,
+      bonusDefensePercent,
+      bonusConstitutionPercent,
       bonusStrength,
       bonusConstitution,
       bonusIntelligence,
@@ -205,6 +229,8 @@ export function ItemHoverCard({
       bonusLifeSteal: compareAgainst.bonusLifeSteal ?? 0,
       bonusCritChance: compareAgainst.bonusCritChance ?? 0,
       bonusSkillPower: compareAgainst.bonusSkillPower ?? 0,
+      bonusDefensePercent: compareAgainst.bonusDefensePercent ?? 0,
+      bonusConstitutionPercent: compareAgainst.bonusConstitutionPercent ?? 0,
       bonusStrength: compareAgainst.bonusStrength ?? 0,
       bonusConstitution: compareAgainst.bonusConstitution ?? 0,
       bonusIntelligence: compareAgainst.bonusIntelligence ?? 0,
@@ -221,6 +247,16 @@ export function ItemHoverCard({
       { label: "LS%", hovered: Number((currentStats.lifeSteal * 100).toFixed(1)), equipped: Number((compareStats.lifeSteal * 100).toFixed(1)) },
       { label: "Crit%", hovered: Number((currentStats.critChance * 100).toFixed(1)), equipped: Number((compareStats.critChance * 100).toFixed(1)) },
       { label: "Skill%", hovered: Number((currentStats.skillPower * 100).toFixed(1)), equipped: Number((compareStats.skillPower * 100).toFixed(1)) },
+      {
+        label: "DEF%",
+        hovered: Number((currentStats.defensePercent * 100).toFixed(1)),
+        equipped: Number((compareStats.defensePercent * 100).toFixed(1)),
+      },
+      {
+        label: "CON%",
+        hovered: Number((currentStats.constitutionPercent * 100).toFixed(1)),
+        equipped: Number((compareStats.constitutionPercent * 100).toFixed(1)),
+      },
       { label: "STR", hovered: currentStats.strength, equipped: compareStats.strength },
       { label: "CON", hovered: currentStats.constitution, equipped: compareStats.constitution },
       { label: "INT", hovered: currentStats.intelligence, equipped: compareStats.intelligence },

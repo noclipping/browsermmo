@@ -83,6 +83,16 @@ export type CombatActionSuccessBody =
         rarity: string;
         slot: string | null;
         description: string;
+        affixPrefix: string | null;
+        bonusLifeSteal: number;
+        bonusCritChance: number;
+        bonusSkillPower: number;
+        bonusDefensePercent: number;
+        bonusConstitutionPercent: number;
+        bonusStrength: number;
+        bonusConstitution: number;
+        bonusIntelligence: number;
+        bonusDexterity: number;
         attack: number;
         defense: number;
         hp: number;
@@ -95,6 +105,8 @@ export type CombatActionSuccessBody =
         requiredDexterity: number;
       }>;
       leveled: boolean;
+      /** Character level after XP (same whether or not a tier was crossed). */
+      levelAfter?: number;
       log: string[];
       potionCount: number;
       guildBoss?: { appliedDamage: number; guildDefeated: boolean };
@@ -111,6 +123,7 @@ export type CombatActionSuccessBody =
       log: string[];
       potionCount: number;
       leveled: boolean;
+      levelAfter?: number;
       guildBoss?: { appliedDamage: number; guildDefeated: boolean };
       achievementToasts?: AchievementToastItem[];
     };
@@ -136,6 +149,8 @@ async function potionCountForCharacter(characterId: string): Promise<number> {
       bonusLifeSteal: 0,
       bonusCritChance: 0,
       bonusSkillPower: 0,
+      bonusDefensePercent: 0,
+      bonusConstitutionPercent: 0,
       bonusStrength: 0,
       bonusConstitution: 0,
       bonusIntelligence: 0,
@@ -155,6 +170,8 @@ async function consumeOnePotion(characterId: string, potionItemId: string) {
       bonusLifeSteal: 0,
       bonusCritChance: 0,
       bonusSkillPower: 0,
+      bonusDefensePercent: 0,
+      bonusConstitutionPercent: 0,
       bonusStrength: 0,
       bonusConstitution: 0,
       bonusIntelligence: 0,
@@ -173,7 +190,18 @@ async function consumeOnePotion(characterId: string, potionItemId: string) {
 async function addDroppedItemTx(
   tx: Prisma.TransactionClient,
   params: { characterId: string; itemId: string; characterClass: Character["class"] },
-) {
+): Promise<{
+  affixPrefix: string | null;
+  bonusLifeSteal: number;
+  bonusCritChance: number;
+  bonusSkillPower: number;
+  bonusDefensePercent: number;
+  bonusConstitutionPercent: number;
+  bonusStrength: number;
+  bonusConstitution: number;
+  bonusIntelligence: number;
+  bonusDexterity: number;
+}> {
   const dropped = await tx.item.findUniqueOrThrow({ where: { id: params.itemId } });
   if (dropped.slot === "CONSUMABLE") {
     await addItemQuantityCapped(tx, {
@@ -182,7 +210,18 @@ async function addDroppedItemTx(
       itemKey: dropped.key,
       delta: 1,
     });
-    return;
+    return {
+      affixPrefix: null,
+      bonusLifeSteal: 0,
+      bonusCritChance: 0,
+      bonusSkillPower: 0,
+      bonusDefensePercent: 0,
+      bonusConstitutionPercent: 0,
+      bonusStrength: 0,
+      bonusConstitution: 0,
+      bonusIntelligence: 0,
+      bonusDexterity: 0,
+    };
   }
   const inv = await tx.inventoryItem.findFirst({
     where: {
@@ -193,6 +232,8 @@ async function addDroppedItemTx(
       bonusLifeSteal: 0,
       bonusCritChance: 0,
       bonusSkillPower: 0,
+      bonusDefensePercent: 0,
+      bonusConstitutionPercent: 0,
       bonusStrength: 0,
       bonusConstitution: 0,
       bonusIntelligence: 0,
@@ -210,12 +251,24 @@ async function addDroppedItemTx(
         ...rolled,
       },
     });
-    return;
+    return rolled;
   }
   await tx.inventoryItem.update({
     where: { id: inv.id },
     data: { quantity: { increment: 1 } },
   });
+  return {
+    affixPrefix: inv.affixPrefix ?? null,
+    bonusLifeSteal: inv.bonusLifeSteal ?? 0,
+    bonusCritChance: inv.bonusCritChance ?? 0,
+    bonusSkillPower: inv.bonusSkillPower ?? 0,
+    bonusDefensePercent: inv.bonusDefensePercent ?? 0,
+    bonusConstitutionPercent: inv.bonusConstitutionPercent ?? 0,
+    bonusStrength: inv.bonusStrength ?? 0,
+    bonusConstitution: inv.bonusConstitution ?? 0,
+    bonusIntelligence: inv.bonusIntelligence ?? 0,
+    bonusDexterity: inv.bonusDexterity ?? 0,
+  };
 }
 
 export async function executeCombatAction(
@@ -325,6 +378,8 @@ export async function executeCombatAction(
           bonusLifeSteal: 0,
           bonusCritChance: 0,
           bonusSkillPower: 0,
+          bonusDefensePercent: 0,
+          bonusConstitutionPercent: 0,
           bonusStrength: 0,
           bonusConstitution: 0,
           bonusIntelligence: 0,
@@ -506,9 +561,24 @@ export async function executeCombatAction(
     const guildXpVal = await getGuildXpForUser(character.userId);
     const { totalXp: xpGained } = applyGuildBonusToCombatXp(baseXp, guildXpVal);
     const char = await prisma.character.findUniqueOrThrow({ where: { id: character.id } });
-    const { data: charUpdate, leveled } = buildVictoryCharacterUpdate(char, state.playerHp, xpGained, goldGained);
+    const { data: charUpdate, leveled, levelAfter } = buildVictoryCharacterUpdate(char, state.playerHp, xpGained, goldGained);
     const reg = await prisma.region.findUnique({ where: { id: char.regionId } });
 
+    const droppedAffixByItemId = new Map<
+      string,
+      {
+        affixPrefix: string | null;
+        bonusLifeSteal: number;
+        bonusCritChance: number;
+        bonusSkillPower: number;
+        bonusDefensePercent: number;
+        bonusConstitutionPercent: number;
+        bonusStrength: number;
+        bonusConstitution: number;
+        bonusIntelligence: number;
+        bonusDexterity: number;
+      }
+    >();
     const achievementKeys = await prisma.$transaction(async (tx) => {
       await tx.character.update({ where: { id: character.id }, data: charUpdate });
       if (reg?.key === "town_outskirts") {
@@ -519,7 +589,8 @@ export async function executeCombatAction(
         }
       }
       for (const itemId of droppedItemIds) {
-        await addDroppedItemTx(tx, { characterId: character.id, itemId, characterClass: character.class });
+        const rolled = await addDroppedItemTx(tx, { characterId: character.id, itemId, characterClass: character.class });
+        if (!droppedAffixByItemId.has(itemId)) droppedAffixByItemId.set(itemId, rolled);
       }
       await tx.combatLog.create({
         data: { characterId: character.id, enemyId: enemy.id, outcome: "WIN", turns: state.round, log, xpGained, goldGained },
@@ -572,6 +643,16 @@ export async function executeCombatAction(
           rarity: it.rarity,
           slot: it.slot,
           description: it.description,
+          affixPrefix: droppedAffixByItemId.get(it.id)?.affixPrefix ?? null,
+          bonusLifeSteal: droppedAffixByItemId.get(it.id)?.bonusLifeSteal ?? 0,
+          bonusCritChance: droppedAffixByItemId.get(it.id)?.bonusCritChance ?? 0,
+          bonusSkillPower: droppedAffixByItemId.get(it.id)?.bonusSkillPower ?? 0,
+          bonusDefensePercent: droppedAffixByItemId.get(it.id)?.bonusDefensePercent ?? 0,
+          bonusConstitutionPercent: droppedAffixByItemId.get(it.id)?.bonusConstitutionPercent ?? 0,
+          bonusStrength: droppedAffixByItemId.get(it.id)?.bonusStrength ?? 0,
+          bonusConstitution: droppedAffixByItemId.get(it.id)?.bonusConstitution ?? 0,
+          bonusIntelligence: droppedAffixByItemId.get(it.id)?.bonusIntelligence ?? 0,
+          bonusDexterity: droppedAffixByItemId.get(it.id)?.bonusDexterity ?? 0,
           attack: it.attack,
           defense: it.defense,
           hp: it.hp,
@@ -584,6 +665,7 @@ export async function executeCombatAction(
           requiredDexterity: it.requiredDexterity,
         })),
         leveled,
+        levelAfter,
         log,
         potionCount,
         achievementToasts,
@@ -728,6 +810,7 @@ export async function executeCombatAction(
       log,
       potionCount,
       leveled: leveledOnDefeat,
+      levelAfter: leveledOnDefeat ? progression.level : undefined,
       achievementToasts: soloDefeatToasts,
     },
   };

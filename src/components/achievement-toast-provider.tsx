@@ -186,7 +186,9 @@ export function AchievementToastProvider() {
                 {current.icon}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-200/90">Achievement unlocked</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-200/90">
+                  {current.variant === "levelup" ? "Progress" : "Achievement unlocked"}
+                </p>
                 <p className="mt-1 font-serif text-lg font-semibold text-zinc-50">{current.name}</p>
                 <p className="mt-1 text-xs leading-snug text-zinc-400">{current.description}</p>
               </div>

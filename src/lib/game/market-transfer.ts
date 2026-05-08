@@ -11,6 +11,8 @@ export type MarketListingSnapshot = {
   bonusLifeSteal: number;
   bonusCritChance: number;
   bonusSkillPower: number;
+  bonusDefensePercent: number;
+  bonusConstitutionPercent: number;
   bonusStrength: number;
   bonusConstitution: number;
   bonusIntelligence: number;
@@ -48,6 +50,8 @@ export async function grantMarketStackToCharacterTx(
     bonusLifeSteal: snapshot.bonusLifeSteal,
     bonusCritChance: snapshot.bonusCritChance,
     bonusSkillPower: snapshot.bonusSkillPower,
+    bonusDefensePercent: snapshot.bonusDefensePercent,
+    bonusConstitutionPercent: snapshot.bonusConstitutionPercent,
     bonusStrength: snapshot.bonusStrength,
     bonusConstitution: snapshot.bonusConstitution,
     bonusIntelligence: snapshot.bonusIntelligence,

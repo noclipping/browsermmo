@@ -2,7 +2,9 @@
 
 ALTER TYPE "GuildRole" ADD VALUE IF NOT EXISTS 'INITIATE';
 
-ALTER TABLE "GuildMember" ALTER COLUMN "role" SET DEFAULT 'INITIATE'::"GuildRole";
+-- Keep this migration shadow-safe on Postgres: new enum values cannot be used
+-- as defaults until after commit. A later migration sets INITIATE as default.
+ALTER TABLE "GuildMember" ALTER COLUMN "role" SET DEFAULT 'MEMBER'::"GuildRole";
 
 ALTER TABLE "Character" ADD COLUMN IF NOT EXISTS "dailyLoginNextStreakDay" INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE "Character" ADD COLUMN IF NOT EXISTS "dailyLoginLastClaimDate" DATE;

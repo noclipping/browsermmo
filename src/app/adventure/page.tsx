@@ -72,6 +72,7 @@ export default async function AdventurePage({
     town_outskirts: "/images/areabanners/townoutskirtsbanner.png",
     forest_edge: "/images/areabanners/forestbanner.png",
     ancient_ruins: "/images/areabanners/ancientruinsbanner.png",
+    murk_catacombs: "/images/areabanners/murkcatacombs.png",
   };
   const regionBannerSrc = bannerByRegionKey[regionKey] ?? null;
 

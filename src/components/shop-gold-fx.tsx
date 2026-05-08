@@ -1,5 +1,6 @@
 "use client";
 
+import { useSfx } from "@/components/sfx-provider";
 import type { ShopTransactionResult } from "@/lib/game/shop-transaction";
 import { useRouter } from "next/navigation";
 import {
@@ -35,6 +36,8 @@ export function ShopGoldFxRoot({ children }: { children: ReactNode }) {
   const idRef = useRef(0);
   const [mounted, setMounted] = useState(false);
 
+  // Portal to document.body only after mount (SSR has no DOM target).
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional client-only gate for createPortal
   useEffect(() => setMounted(true), []);
 
   const spawn = useCallback((delta: number, anchor: ShopGoldAnchor) => {
@@ -135,6 +138,7 @@ export function ShopTransactionForm({
   className?: string;
 }) {
   const spawn = useShopGoldFx();
+  const { playSfx } = useSfx();
   const router = useRouter();
   const pointerRef = useRef<ShopGoldAnchor | null>(null);
 
@@ -145,7 +149,10 @@ export function ShopTransactionForm({
     const anchor = pointerRef.current ?? anchorFromSubmit(form, e.nativeEvent as SubmitEvent);
     pointerRef.current = null;
     const r = await transactionAction(fd);
-    if (r.ok) spawn(r.delta, anchor);
+    if (r.ok) {
+      spawn(r.delta, anchor);
+      if (r.delta !== 0) playSfx("coin");
+    }
     router.refresh();
   }
 

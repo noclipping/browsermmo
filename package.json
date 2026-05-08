@@ -10,6 +10,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
+    "prisma:seed:enemies": "tsx scripts/reseed-enemies.ts",
+    "loot:validate": "tsx scripts/validate-loot-seed.ts",
     "db:clear-migrate-lock": "prisma db execute --schema prisma/schema.prisma --file scripts/clear-migrate-advisory-lock.sql"
   },
   "dependencies": {

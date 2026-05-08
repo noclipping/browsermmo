@@ -7,6 +7,8 @@ const stackSelect = {
   bonusLifeSteal: true,
   bonusCritChance: true,
   bonusSkillPower: true,
+  bonusDefensePercent: true,
+  bonusConstitutionPercent: true,
   bonusStrength: true,
   bonusConstitution: true,
   bonusIntelligence: true,
@@ -29,6 +31,8 @@ export async function moveInventoryStackToTreasury(
   const bonusLifeSteal = row.bonusLifeSteal ?? 0;
   const bonusCritChance = row.bonusCritChance ?? 0;
   const bonusSkillPower = row.bonusSkillPower ?? 0;
+  const bonusDefensePercent = row.bonusDefensePercent ?? 0;
+  const bonusConstitutionPercent = row.bonusConstitutionPercent ?? 0;
   const bonusStrength = row.bonusStrength ?? 0;
   const bonusConstitution = row.bonusConstitution ?? 0;
   const bonusIntelligence = row.bonusIntelligence ?? 0;
@@ -43,6 +47,8 @@ export async function moveInventoryStackToTreasury(
       bonusLifeSteal,
       bonusCritChance,
       bonusSkillPower,
+      bonusDefensePercent,
+      bonusConstitutionPercent,
       bonusStrength,
       bonusConstitution,
       bonusIntelligence,
@@ -75,6 +81,8 @@ export async function moveInventoryStackToTreasury(
         bonusLifeSteal,
         bonusCritChance,
         bonusSkillPower,
+        bonusDefensePercent,
+        bonusConstitutionPercent,
         bonusStrength,
         bonusConstitution,
         bonusIntelligence,
@@ -102,6 +110,8 @@ export async function moveTreasuryStackToInventory(
   const bonusLifeSteal = row.bonusLifeSteal ?? 0;
   const bonusCritChance = row.bonusCritChance ?? 0;
   const bonusSkillPower = row.bonusSkillPower ?? 0;
+  const bonusDefensePercent = row.bonusDefensePercent ?? 0;
+  const bonusConstitutionPercent = row.bonusConstitutionPercent ?? 0;
   const bonusStrength = row.bonusStrength ?? 0;
   const bonusConstitution = row.bonusConstitution ?? 0;
   const bonusIntelligence = row.bonusIntelligence ?? 0;
@@ -116,6 +126,8 @@ export async function moveTreasuryStackToInventory(
       bonusLifeSteal,
       bonusCritChance,
       bonusSkillPower,
+      bonusDefensePercent,
+      bonusConstitutionPercent,
       bonusStrength,
       bonusConstitution,
       bonusIntelligence,
@@ -148,6 +160,8 @@ export async function moveTreasuryStackToInventory(
         bonusLifeSteal,
         bonusCritChance,
         bonusSkillPower,
+        bonusDefensePercent,
+        bonusConstitutionPercent,
         bonusStrength,
         bonusConstitution,
         bonusIntelligence,

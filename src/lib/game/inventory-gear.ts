@@ -12,6 +12,8 @@ export async function returnGearToInventoryTx(
     bonusLifeSteal?: number;
     bonusCritChance?: number;
     bonusSkillPower?: number;
+    bonusDefensePercent?: number;
+    bonusConstitutionPercent?: number;
     bonusStrength?: number;
     bonusConstitution?: number;
     bonusIntelligence?: number;
@@ -23,6 +25,8 @@ export async function returnGearToInventoryTx(
   const bonusLifeSteal = params.bonusLifeSteal ?? 0;
   const bonusCritChance = params.bonusCritChance ?? 0;
   const bonusSkillPower = params.bonusSkillPower ?? 0;
+  const bonusDefensePercent = params.bonusDefensePercent ?? 0;
+  const bonusConstitutionPercent = params.bonusConstitutionPercent ?? 0;
   const bonusStrength = params.bonusStrength ?? 0;
   const bonusConstitution = params.bonusConstitution ?? 0;
   const bonusIntelligence = params.bonusIntelligence ?? 0;
@@ -37,6 +41,8 @@ export async function returnGearToInventoryTx(
       bonusLifeSteal,
       bonusCritChance,
       bonusSkillPower,
+      bonusDefensePercent,
+      bonusConstitutionPercent,
       bonusStrength,
       bonusConstitution,
       bonusIntelligence,
@@ -54,6 +60,8 @@ export async function returnGearToInventoryTx(
         bonusLifeSteal,
         bonusCritChance,
         bonusSkillPower,
+        bonusDefensePercent,
+        bonusConstitutionPercent,
         bonusStrength,
         bonusConstitution,
         bonusIntelligence,

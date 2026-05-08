@@ -40,15 +40,10 @@ export function CharacterAchievementsModal({
   totalCount: number;
 }) {
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<AchievementFilter>("all");
   const [pending, startTransition] = useTransition();
   const router = useRouter();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -112,7 +107,7 @@ export function CharacterAchievementsModal({
   );
 
   const overlay =
-    open && mounted ? (
+    open ? (
       <div
         className="fixed inset-0 z-[10050] flex max-h-[100dvh] flex-col justify-end p-0 md:items-center md:justify-center md:p-6"
         role="dialog"
@@ -282,7 +277,7 @@ export function CharacterAchievementsModal({
         <span aria-hidden>🏆</span>
         Achievements
       </button>
-      {mounted && overlay ? createPortal(overlay, document.body) : null}
+      {overlay ? createPortal(overlay, document.body) : null}
     </>
   );
 }

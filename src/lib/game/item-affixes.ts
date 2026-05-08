@@ -6,6 +6,8 @@ export type AffixBonuses = {
   bonusLifeSteal: number;
   bonusCritChance: number;
   bonusSkillPower: number;
+  bonusDefensePercent: number;
+  bonusConstitutionPercent: number;
   bonusStrength: number;
   bonusConstitution: number;
   bonusIntelligence: number;
@@ -17,6 +19,8 @@ type RollDef = {
   lifeSteal?: [number, number];
   critChance?: [number, number];
   skillPower?: [number, number];
+  defensePercent?: [number, number];
+  constitutionPercent?: [number, number];
   strength?: [number, number];
   constitution?: [number, number];
   intelligence?: [number, number];
@@ -43,6 +47,10 @@ const NEUTRAL_POOL: RollDef[] = [
   { prefix: "Eternal", lifeSteal: [0.015, 0.04], constitution: [1, 4] },
   { prefix: "Ascendant", strength: [1, 4], intelligence: [1, 4], dexterity: [1, 4] },
 ];
+const WORN_PERCENT_POOL: RollDef[] = [
+  { prefix: "Bastioned", defensePercent: [0.015, 0.04] },
+  { prefix: "Ironblooded", constitutionPercent: [0.02, 0.05] },
+];
 
 function randomFloat([min, max]: [number, number]) {
   return min + Math.random() * (max - min);
@@ -62,6 +70,8 @@ function zeroBonuses(prefix: string | null): AffixBonuses {
     bonusLifeSteal: 0,
     bonusCritChance: 0,
     bonusSkillPower: 0,
+    bonusDefensePercent: 0,
+    bonusConstitutionPercent: 0,
     bonusStrength: 0,
     bonusConstitution: 0,
     bonusIntelligence: 0,
@@ -74,11 +84,21 @@ function rollOneAffix(def: RollDef, scale: number): Omit<AffixBonuses, "affixPre
     bonusLifeSteal: def.lifeSteal ? Number((randomFloat(def.lifeSteal) * scale).toFixed(4)) : 0,
     bonusCritChance: def.critChance ? Number((randomFloat(def.critChance) * scale).toFixed(4)) : 0,
     bonusSkillPower: def.skillPower ? Number((randomFloat(def.skillPower) * scale).toFixed(4)) : 0,
+    bonusDefensePercent: def.defensePercent ? Number((randomFloat(def.defensePercent) * scale).toFixed(4)) : 0,
+    bonusConstitutionPercent: def.constitutionPercent ? Number((randomFloat(def.constitutionPercent) * scale).toFixed(4)) : 0,
     bonusStrength: def.strength ? Math.max(1, Math.round(randomInt(def.strength) * scale)) : 0,
     bonusConstitution: def.constitution ? Math.max(1, Math.round(randomInt(def.constitution) * scale)) : 0,
     bonusIntelligence: def.intelligence ? Math.max(1, Math.round(randomInt(def.intelligence) * scale)) : 0,
     bonusDexterity: def.dexterity ? Math.max(1, Math.round(randomInt(def.dexterity) * scale)) : 0,
   };
+}
+
+function hasPercentPayload(def: RollDef): boolean {
+  return !!(def.lifeSteal || def.critChance || def.skillPower || def.defensePercent || def.constitutionPercent);
+}
+
+function isWornGearSlot(slot: ItemSlot): boolean {
+  return slot !== "WEAPON" && slot !== "RING" && slot !== "AMULET" && slot !== "CONSUMABLE";
 }
 
 function poolForClass(characterClass: CharacterClass, slot: ItemSlot): RollDef[] {
@@ -99,11 +119,23 @@ export function rollAffixesForItem(params: {
 
   const scale = scaleForRarity(params.item.rarity);
   const classPool = poolForClass(params.characterClass, params.item.slot);
-  const affixPool = params.item.rarity === "GODLY" ? [...classPool, ...NEUTRAL_POOL] : classPool;
+  const wornPool = isWornGearSlot(params.item.slot) ? WORN_PERCENT_POOL : [];
+  const affixPool = (params.item.rarity === "GODLY" ? [...classPool, ...NEUTRAL_POOL] : classPool).concat(wornPool);
   if (!affixPool.length) return zeroBonuses(null);
 
   const rollCount = params.item.rarity === "GODLY" ? 2 + Math.floor(Math.random() * 2) : 1;
-  const picks = [...affixPool].sort(() => Math.random() - 0.5).slice(0, Math.min(rollCount, affixPool.length));
+  const percentNeeded = params.item.rarity === "GODLY" ? 2 : 1;
+  const percentPool = affixPool.filter(hasPercentPayload).sort(() => Math.random() - 0.5);
+  const picks: RollDef[] = [];
+  for (const def of percentPool) {
+    if (picks.length >= Math.min(percentNeeded, rollCount)) break;
+    picks.push(def);
+  }
+  const remaining = affixPool.filter((def) => !picks.includes(def)).sort(() => Math.random() - 0.5);
+  for (const def of remaining) {
+    if (picks.length >= Math.min(rollCount, affixPool.length)) break;
+    picks.push(def);
+  }
   const bonuses = zeroBonuses(
     params.item.rarity === "GODLY"
       ? `Godforged ${picks.map((pick) => pick.prefix).join("-")}`
@@ -115,6 +147,8 @@ export function rollAffixesForItem(params: {
     bonuses.bonusLifeSteal = Number((bonuses.bonusLifeSteal + rolled.bonusLifeSteal).toFixed(4));
     bonuses.bonusCritChance = Number((bonuses.bonusCritChance + rolled.bonusCritChance).toFixed(4));
     bonuses.bonusSkillPower = Number((bonuses.bonusSkillPower + rolled.bonusSkillPower).toFixed(4));
+    bonuses.bonusDefensePercent = Number((bonuses.bonusDefensePercent + rolled.bonusDefensePercent).toFixed(4));
+    bonuses.bonusConstitutionPercent = Number((bonuses.bonusConstitutionPercent + rolled.bonusConstitutionPercent).toFixed(4));
     bonuses.bonusStrength += rolled.bonusStrength;
     bonuses.bonusConstitution += rolled.bonusConstitution;
     bonuses.bonusIntelligence += rolled.bonusIntelligence;
@@ -147,10 +181,37 @@ export function forgedAffixMultiplier(params: { forgeLevel: number; rarity: Rari
   return Number((1 + add).toFixed(5));
 }
 
+/**
+ * Additive forge gain for percent-based affixes (lifesteal / crit / skill power).
+ *
+ * Values are stored as decimal fractions, so:
+ * - +1.0% tooltip gain = +0.01 stored
+ * - +0.5% tooltip gain = +0.005 stored
+ * - +0.25% tooltip gain = +0.0025 stored
+ */
+export function forgedPercentAffixAdditiveBonus(params: { forgeLevel: number; rarity: Rarity }): number {
+  if (params.rarity !== "LEGENDARY" && params.rarity !== "GODLY") return 0;
+  const tier = Math.max(0, Math.floor(params.forgeLevel));
+  if (tier === 0) return 0;
+  let add = 0;
+  for (let i = 1; i <= tier; i += 1) {
+    if (i <= 25) {
+      add += 0.01;
+    } else if (i <= 50) {
+      add += 0.005;
+    } else {
+      add += 0.0025;
+    }
+  }
+  return Number(add.toFixed(4));
+}
+
 export type StoredAffixBonuses = {
   bonusLifeSteal: number;
   bonusCritChance: number;
   bonusSkillPower: number;
+  bonusDefensePercent: number;
+  bonusConstitutionPercent: number;
   bonusStrength: number;
   bonusConstitution: number;
   bonusIntelligence: number;
@@ -162,11 +223,15 @@ export function forgedAffixScaledBonuses(
   params: { forgeLevel: number; rarity: Rarity },
 ): StoredAffixBonuses {
   const m = forgedAffixMultiplier(params);
-  if (m === 1) return { ...stored };
+  const percentAdd = forgedPercentAffixAdditiveBonus(params);
+  if (m === 1 && percentAdd === 0) return { ...stored };
   return {
-    bonusLifeSteal: Number((stored.bonusLifeSteal * m).toFixed(4)),
-    bonusCritChance: Number((stored.bonusCritChance * m).toFixed(4)),
-    bonusSkillPower: Number((stored.bonusSkillPower * m).toFixed(4)),
+    bonusLifeSteal: stored.bonusLifeSteal > 0 ? Number((stored.bonusLifeSteal + percentAdd).toFixed(4)) : 0,
+    bonusCritChance: stored.bonusCritChance > 0 ? Number((stored.bonusCritChance + percentAdd).toFixed(4)) : 0,
+    bonusSkillPower: stored.bonusSkillPower > 0 ? Number((stored.bonusSkillPower + percentAdd).toFixed(4)) : 0,
+    bonusDefensePercent: stored.bonusDefensePercent > 0 ? Number((stored.bonusDefensePercent + percentAdd).toFixed(4)) : 0,
+    bonusConstitutionPercent:
+      stored.bonusConstitutionPercent > 0 ? Number((stored.bonusConstitutionPercent + percentAdd).toFixed(4)) : 0,
     bonusStrength: Math.round(stored.bonusStrength * m),
     bonusConstitution: Math.round(stored.bonusConstitution * m),
     bonusIntelligence: Math.round(stored.bonusIntelligence * m),

@@ -8,6 +8,12 @@ import {
   STAT_POINTS_ON_CREATE,
 } from "../src/lib/game/constants";
 import { ACHIEVEMENT_CATALOG_SEED } from "../src/lib/game/achievement-seed-catalog";
+import {
+  buildCompleteRegionalLootItems,
+  buildRegionalDropRows,
+  REGIONAL_LOOT_DEFINITIONS,
+  validateLootConfiguration,
+} from "./loot-generation";
 
 const prisma = new PrismaClient();
 const SLOT_ORDER: ItemSlot[] = ["WEAPON", "HELMET", "CHEST", "GLOVES", "BOOTS", "RING", "AMULET"];
@@ -73,6 +79,8 @@ function sellPriceFor(rarity: Rarity, value: number): number {
   return Math.max(1, Math.floor(value * mult));
 }
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/** Legacy regional builders kept for reference while seed transitions to `prisma/loot-generation.ts`. */
 /** Per-zone weapon line: warrior (STR), ranger (DEX + speed), mage (INT + hp). All four rarities roll from every enemy in that zone. */
 const WEAPON_DROP_RARITIES = ["COMMON", "UNCOMMON", "RARE", "LEGENDARY"] as const satisfies readonly Rarity[];
 type WeaponDropRarity = (typeof WEAPON_DROP_RARITIES)[number];
@@ -700,6 +708,7 @@ function pushBossLegendaryArmorDrops(
     }
   }
 }
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 async function main() {
   const [town, forest, ruins, catacombs] = await Promise.all([
@@ -917,7 +926,7 @@ async function main() {
     },
   ];
 
-  const items = [...baseItems, ...buildRegionalWeaponItems(), ...buildRegionalCommonApparel(), ...buildRegionalLegendaryArmor()];
+  const items = [...baseItems, ...buildCompleteRegionalLootItems()];
 
   for (const item of items) {
     const reqLvl = item.requiredLevel ?? 1;
@@ -1379,6 +1388,40 @@ async function main() {
       isElite: false,
     },
   });
+  const ashCrawler = await upsertEnemyWithDifficulty({
+    where: { key: "ash_crawler" },
+    update: {
+      name: "Ash Crawler",
+      emoji: "🪳",
+      level: 9,
+      hp: 176,
+      attack: 33,
+      defense: 19,
+      speed: 10,
+      xpReward: 142,
+      goldMin: 26,
+      goldMax: 52,
+      regionId: ruins.id,
+      isDungeonBoss: false,
+      isElite: false,
+    },
+    create: {
+      key: "ash_crawler",
+      name: "Ash Crawler",
+      emoji: "🪳",
+      level: 9,
+      hp: 176,
+      attack: 33,
+      defense: 19,
+      speed: 10,
+      xpReward: 142,
+      goldMin: 26,
+      goldMax: 52,
+      regionId: ruins.id,
+      isDungeonBoss: false,
+      isElite: false,
+    },
+  });
   const imp = await upsertEnemyWithDifficulty({
     where: { key: "cave_imp" },
     update: {
@@ -1401,14 +1444,14 @@ async function main() {
       key: "cave_imp",
       name: "Cave Imp",
       emoji: "👺",
-      level: 10,
-      hp: 104,
-      attack: 18,
-      defense: 13,
+      level: 11,
+      hp: 208,
+      attack: 36,
+      defense: 21,
       speed: 8,
-      xpReward: 116,
-      goldMin: 18,
-      goldMax: 38,
+      xpReward: 232,
+      goldMin: 36,
+      goldMax: 72,
       regionId: ruins.id,
       isDungeonBoss: true,
       isElite: true,
@@ -1436,14 +1479,14 @@ async function main() {
       key: "ruins_colossus",
       name: "Ruins Colossus",
       emoji: "🗿",
-      level: 11,
-      hp: 148,
-      attack: 24,
-      defense: 16,
+      level: 12,
+      hp: 272,
+      attack: 42,
+      defense: 28,
       speed: 7,
-      xpReward: 136,
-      goldMin: 22,
-      goldMax: 46,
+      xpReward: 268,
+      goldMin: 42,
+      goldMax: 82,
       regionId: ruins.id,
       isElite: true,
       isAdventureMiniBoss: true,
@@ -1470,14 +1513,14 @@ async function main() {
       key: "tomb_revenant",
       name: "Tomb Revenant",
       emoji: "⚔️",
-      level: 9,
-      hp: 108,
-      attack: 21,
-      defense: 14,
+      level: 10,
+      hp: 232,
+      attack: 40,
+      defense: 23,
       speed: 8,
-      xpReward: 88,
-      goldMin: 16,
-      goldMax: 34,
+      xpReward: 184,
+      goldMin: 30,
+      goldMax: 58,
       regionId: ruins.id,
       isElite: true,
       isDungeonBoss: false,
@@ -1503,14 +1546,14 @@ async function main() {
       key: "crypt_wraith",
       name: "Crypt Wraith",
       emoji: "👻",
-      level: 12,
-      hp: 132,
-      attack: 26,
-      defense: 16,
+      level: 14,
+      hp: 318,
+      attack: 52,
+      defense: 30,
       speed: 12,
-      xpReward: 110,
-      goldMin: 22,
-      goldMax: 48,
+      xpReward: 242,
+      goldMin: 40,
+      goldMax: 76,
       regionId: catacombs.id,
       isElite: false,
     },
@@ -1535,14 +1578,14 @@ async function main() {
       key: "bone_knight",
       name: "Bone Knight",
       emoji: "🦴",
-      level: 13,
-      hp: 158,
-      attack: 30,
-      defense: 20,
+      level: 15,
+      hp: 372,
+      attack: 60,
+      defense: 36,
       speed: 9,
-      xpReward: 128,
-      goldMin: 26,
-      goldMax: 54,
+      xpReward: 292,
+      goldMin: 46,
+      goldMax: 88,
       regionId: catacombs.id,
       isElite: false,
     },
@@ -1568,134 +1611,62 @@ async function main() {
       key: "grave_warden",
       name: "Grave Warden",
       emoji: "🗿",
-      level: 14,
-      hp: 198,
-      attack: 34,
-      defense: 24,
+      level: 16,
+      hp: 442,
+      attack: 68,
+      defense: 42,
       speed: 10,
-      xpReward: 155,
-      goldMin: 32,
-      goldMax: 68,
+      xpReward: 352,
+      goldMin: 56,
+      goldMax: 104,
       regionId: catacombs.id,
       isElite: true,
       isAdventureMiniBoss: true,
     },
   });
 
-  const dropMap: Array<{ enemyId: string; itemKey: string; chance: number }> = [
-    { enemyId: rat.id, itemKey: "rusty_sword", chance: 0.32 },
-    { enemyId: rat.id, itemKey: "slingshot", chance: 0.28 },
-    { enemyId: rat.id, itemKey: "apprentice_staff", chance: 0.28 },
-    { enemyId: rat.id, itemKey: "rogue_cloak_t1", chance: 0.14 },
-    { enemyId: rat.id, itemKey: "mage_robe_t1", chance: 0.14 },
-    { enemyId: rat.id, itemKey: "tin_helm", chance: 0.2 },
-    { enemyId: rat.id, itemKey: "traveler_boots", chance: 0.22 },
-    { enemyId: rat.id, itemKey: HEALTH_POTION_ITEM_KEY, chance: 0.2 },
-    { enemyId: ditch.id, itemKey: "rusty_sword", chance: 0.26 },
-    { enemyId: ditch.id, itemKey: "slingshot", chance: 0.24 },
-    { enemyId: ditch.id, itemKey: "apprentice_staff", chance: 0.24 },
-    { enemyId: ditch.id, itemKey: "leather_gloves", chance: 0.2 },
-    { enemyId: ditch.id, itemKey: "traveler_boots", chance: 0.2 },
-    { enemyId: ditch.id, itemKey: HEALTH_POTION_ITEM_KEY, chance: 0.18 },
-    { enemyId: gutter.id, itemKey: "rusty_sword", chance: 0.22 },
-    { enemyId: gutter.id, itemKey: "slingshot", chance: 0.2 },
-    { enemyId: gutter.id, itemKey: "apprentice_staff", chance: 0.2 },
-    { enemyId: gutter.id, itemKey: "worn_chestpiece", chance: 0.2 },
-    { enemyId: gutter.id, itemKey: "tin_helm", chance: 0.18 },
-    { enemyId: gutter.id, itemKey: HEALTH_POTION_ITEM_KEY, chance: 0.16 },
-    { enemyId: snail.id, itemKey: "tin_helm", chance: 0.24 },
-    { enemyId: snail.id, itemKey: "worn_chestpiece", chance: 0.22 },
-    { enemyId: snail.id, itemKey: "traveler_boots", chance: 0.18 },
-    { enemyId: snail.id, itemKey: SMITHING_STONE_ITEM_KEY, chance: 0.04 },
-    { enemyId: snail.id, itemKey: "shadowfang_dagger", chance: 0.012 },
-    { enemyId: snail.id, itemKey: "outskirts_legend_blade", chance: 0.008 },
-    { enemyId: fencer.id, itemKey: "sunlit_rapier", chance: 0.055 },
-    { enemyId: fencer.id, itemKey: "shadowfang_dagger", chance: 0.1 },
-    { enemyId: fencer.id, itemKey: "wizard_band", chance: 0.07 },
-    { enemyId: fencer.id, itemKey: "copper_ring", chance: 0.22 },
-    { enemyId: fencer.id, itemKey: "worn_chestpiece", chance: 0.2 },
-    { enemyId: fencer.id, itemKey: SMITHING_STONE_ITEM_KEY, chance: 0.12 },
-    { enemyId: fencer.id, itemKey: "mana_charm", chance: 0.14 },
-    { enemyId: plague.id, itemKey: "rusty_sword", chance: 0.28 },
-    { enemyId: plague.id, itemKey: "tin_helm", chance: 0.22 },
-    { enemyId: plague.id, itemKey: SMITHING_STONE_ITEM_KEY, chance: 0.05 },
-    { enemyId: plague.id, itemKey: "shadowfang_dagger", chance: 0.018 },
-    { enemyId: plague.id, itemKey: "outskirts_legend_blade", chance: 0.01 },
-    { enemyId: wolf.id, itemKey: HEALTH_POTION_ITEM_KEY, chance: 0.18 },
-    { enemyId: wolf.id, itemKey: "leather_gloves", chance: 0.16 },
-    { enemyId: wolf.id, itemKey: "hunter_bow", chance: 0.12 },
-    { enemyId: wolf.id, itemKey: "ranger_slingshot_t2", chance: 0.16 },
-    { enemyId: wolf.id, itemKey: "battle_staff_t2", chance: 0.16 },
-    { enemyId: wolf.id, itemKey: "plate_tunic_t2", chance: 0.14 },
-    { enemyId: wolf.id, itemKey: "rogue_cloak_t2", chance: 0.14 },
-    { enemyId: wolf.id, itemKey: "mage_robe_t2", chance: 0.14 },
-    { enemyId: wolf.id, itemKey: SMITHING_STONE_ITEM_KEY, chance: 0.035 },
-    { enemyId: alpha.id, itemKey: "iron_spear", chance: 0.22 },
-    { enemyId: alpha.id, itemKey: "worn_chestpiece", chance: 0.18 },
-    { enemyId: alpha.id, itemKey: SMITHING_STONE_ITEM_KEY, chance: 0.08 },
-    { enemyId: alpha.id, itemKey: "shadowfang_dagger", chance: 0.025 },
-    { enemyId: alpha.id, itemKey: "forest_legend_cloak", chance: 0.012 },
-    { enemyId: jackal.id, itemKey: HEALTH_POTION_ITEM_KEY, chance: 0.18 },
-    { enemyId: jackal.id, itemKey: "copper_ring", chance: 0.18 },
-    { enemyId: jackal.id, itemKey: "iron_spear", chance: 0.14 },
-    { enemyId: jackal.id, itemKey: "ranger_slingshot_t2", chance: 0.14 },
-    { enemyId: jackal.id, itemKey: "battle_staff_t2", chance: 0.14 },
-    { enemyId: jackal.id, itemKey: SMITHING_STONE_ITEM_KEY, chance: 0.07 },
-    { enemyId: revenant.id, itemKey: "worn_chestpiece", chance: 0.2 },
-    { enemyId: revenant.id, itemKey: "mana_charm", chance: 0.16 },
-    { enemyId: revenant.id, itemKey: "wizard_band", chance: 0.012 },
-    { enemyId: revenant.id, itemKey: "grave_breastplate", chance: 0.008 },
-    { enemyId: revenant.id, itemKey: "ruins_legend_staff", chance: 0.01 },
-    { enemyId: imp.id, itemKey: "mana_charm", chance: 0.38 },
-    { enemyId: imp.id, itemKey: "oak_staff", chance: 0.36 },
-    { enemyId: imp.id, itemKey: HEALTH_POTION_ITEM_KEY, chance: 0.16 },
-    { enemyId: imp.id, itemKey: SMITHING_STONE_ITEM_KEY, chance: 0.1 },
-    { enemyId: imp.id, itemKey: "wizard_band", chance: 0.02 },
-    { enemyId: wraith.id, itemKey: "oak_staff", chance: 0.2 },
-    { enemyId: wraith.id, itemKey: "mana_charm", chance: 0.22 },
-    { enemyId: wraith.id, itemKey: SMITHING_STONE_ITEM_KEY, chance: 0.1 },
-    { enemyId: wraith.id, itemKey: "grave_breastplate", chance: 0.012 },
-    { enemyId: wraith.id, itemKey: "catacomb_legend_plate", chance: 0.012 },
-    { enemyId: boneKnight.id, itemKey: "iron_spear", chance: 0.2 },
-    { enemyId: boneKnight.id, itemKey: "grave_breastplate", chance: 0.02 },
-    { enemyId: boneKnight.id, itemKey: "wizard_band", chance: 0.015 },
-    { enemyId: boneKnight.id, itemKey: "catacomb_legend_plate", chance: 0.014 },
-    { enemyId: warden.id, itemKey: "grave_breastplate", chance: 0.06 },
-    { enemyId: warden.id, itemKey: "shadowfang_dagger", chance: 0.04 },
-    { enemyId: warden.id, itemKey: SMITHING_STONE_ITEM_KEY, chance: 0.14 },
-    { enemyId: warden.id, itemKey: "catacomb_legend_plate", chance: 0.028 },
-  ];
+  const enemyIdByKey = new Map<string, string>([
+    ["sewer_rat", rat.id],
+    ["plague_burrower", plague.id],
+    ["ditch_scrapper", ditch.id],
+    ["gutter_cur", gutter.id],
+    ["colossal_snail", snail.id],
+    ["sewer_fencer", fencer.id],
+    ["dire_wolf", wolf.id],
+    ["alpha_dire_wolf", alpha.id],
+    ["forest_tree_ent", forestEnt.id],
+    ["gloom_jackal", jackal.id],
+    ["ash_crawler", ashCrawler.id],
+    ["cave_imp", imp.id],
+    ["ruins_colossus", ruinsColossus.id],
+    ["tomb_revenant", revenant.id],
+    ["crypt_wraith", wraith.id],
+    ["bone_knight", boneKnight.id],
+    ["grave_warden", warden.id],
+  ]);
 
-  pushRegionalWeaponDrops(dropMap, [rat.id, plague.id, ditch.id, gutter.id, snail.id, fencer.id], 0);
-  pushRegionalWeaponDrops(dropMap, [wolf.id, alpha.id, forestEnt.id], 1);
-  pushRegionalWeaponDrops(dropMap, [jackal.id, imp.id, revenant.id, ruinsColossus.id], 2);
-  pushRegionalWeaponDrops(dropMap, [wraith.id, boneKnight.id, warden.id], 3);
-  pushRegionalDaggerDrops(dropMap, [rat.id, plague.id, ditch.id, gutter.id, snail.id, fencer.id], 0);
-  pushRegionalDaggerDrops(dropMap, [wolf.id, alpha.id, forestEnt.id], 1);
-  pushRegionalDaggerDrops(dropMap, [jackal.id, imp.id, revenant.id, ruinsColossus.id], 2);
-  pushRegionalDaggerDrops(dropMap, [wraith.id, boneKnight.id, warden.id], 3);
-  pushRegionalCommonApparelDrops(dropMap, [rat.id, plague.id, ditch.id, gutter.id, snail.id, fencer.id], 0);
-  pushRegionalCommonApparelDrops(dropMap, [wolf.id, alpha.id, forestEnt.id], 1);
-  pushRegionalLegendaryArmorDrops(dropMap, [rat.id, plague.id, ditch.id, gutter.id, snail.id, fencer.id], 0);
-  pushRegionalLegendaryArmorDrops(dropMap, [wolf.id, alpha.id, forestEnt.id], 1);
+  const generatedDrops = buildRegionalDropRows(items);
+  const lootValidationErrors = validateLootConfiguration(items, generatedDrops);
+  if (lootValidationErrors.length) {
+    throw new Error(`Loot generation validation failed:\n${lootValidationErrors.map((err) => `- ${err}`).join("\n")}`);
+  }
 
-  // Bosses in each region receive higher legendary/godly weapon rates.
-  pushBossWeaponDrops(dropMap, fencer.id, 0);
-  pushBossWeaponDrops(dropMap, forestEnt.id, 1);
-  pushBossWeaponDrops(dropMap, ruinsColossus.id, 2);
-  pushBossWeaponDrops(dropMap, warden.id, 3);
-  pushBossDaggerDrops(dropMap, fencer.id, 0);
-  pushBossDaggerDrops(dropMap, forestEnt.id, 1);
-  pushBossDaggerDrops(dropMap, ruinsColossus.id, 2);
-  pushBossDaggerDrops(dropMap, warden.id, 3);
-  pushBossLegendaryArmorDrops(dropMap, fencer.id, 0);
-  pushBossLegendaryArmorDrops(dropMap, forestEnt.id, 1);
-  pushBossLegendaryArmorDrops(dropMap, ruinsColossus.id, 2);
-  pushBossLegendaryArmorDrops(dropMap, warden.id, 3);
-  pushRegionalCommonApparelDrops(dropMap, [jackal.id, imp.id, revenant.id, ruinsColossus.id], 2);
-  pushRegionalCommonApparelDrops(dropMap, [wraith.id, boneKnight.id, warden.id], 3);
-  pushRegionalLegendaryArmorDrops(dropMap, [jackal.id, imp.id, revenant.id, ruinsColossus.id], 2);
-  pushRegionalLegendaryArmorDrops(dropMap, [wraith.id, boneKnight.id, warden.id], 3);
+  const configuredEnemies = new Set(
+    REGIONAL_LOOT_DEFINITIONS.flatMap((region) => [
+      ...region.enemyKeysByType.COMMON,
+      ...region.enemyKeysByType.ELITE,
+      ...region.enemyKeysByType.BOSS,
+    ]),
+  );
+  for (const enemyKey of configuredEnemies) {
+    if (!enemyIdByKey.has(enemyKey)) throw new Error(`Loot config references unknown enemy key: ${enemyKey}`);
+  }
+
+  const dropMap: Array<{ enemyId: string; itemKey: string; chance: number }> = generatedDrops.map((drop) => {
+    const enemyId = enemyIdByKey.get(drop.enemyKey);
+    if (!enemyId) throw new Error(`Missing enemy id mapping for drop enemy key: ${drop.enemyKey}`);
+    return { enemyId, itemKey: drop.itemKey, chance: drop.chance };
+  });
 
   await prisma.lootTableEntry.deleteMany({});
   for (const drop of dropMap) {

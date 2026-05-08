@@ -112,6 +112,8 @@ export async function startGuildBossEncounter(params: { character: Character; us
             bonusLifeSteal: entry.bonusLifeSteal ?? 0,
             bonusCritChance: entry.bonusCritChance ?? 0,
             bonusSkillPower: entry.bonusSkillPower ?? 0,
+            bonusDefensePercent: entry.bonusDefensePercent ?? 0,
+            bonusConstitutionPercent: entry.bonusConstitutionPercent ?? 0,
             bonusStrength: entry.bonusStrength ?? 0,
             bonusConstitution: entry.bonusConstitution ?? 0,
             bonusIntelligence: entry.bonusIntelligence ?? 0,

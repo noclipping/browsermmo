@@ -257,6 +257,15 @@ export async function leaveGuildAction(): Promise<string | null> {
     where: { guildId: me.guildId },
     select: { userId: true, role: true, joinedAt: true },
   });
+  if (members.length <= 1) {
+    // Last member/owner leaving disbands the guild so leave always succeeds.
+    await prisma.$transaction(async (tx) => {
+      await tx.guildMember.delete({ where: { userId: user.id } });
+      await tx.guild.delete({ where: { id: me.guildId } });
+    });
+    revalidateGuildPaths();
+    return null;
+  }
   const successor = pickGuildSuccessorPlain(members, user.id);
   if (!successor) {
     return "Invite another member (or promote someone) before leaving — the guild must have a successor.";

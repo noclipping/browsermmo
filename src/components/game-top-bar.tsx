@@ -1,5 +1,7 @@
 import { logoutAction } from "@/app/actions/auth";
 import { debugResetCharacterAction } from "@/app/actions/game";
+import { DebugLevelUpPreview } from "@/components/debug-level-up-preview";
+import { SfxTopBarControl } from "@/components/sfx-top-bar-control";
 import Link from "next/link";
 
 const profileHref = (characterName: string) =>
@@ -34,6 +36,7 @@ export function GameTopBar({
     <div className="relative z-50 mb-8 mt-1">
       <header className="flex min-h-11 items-center justify-end gap-2 rounded-xl border border-white/20 bg-zinc-950/45 bg-linear-to-b from-black/62 via-black/78 to-black/95 py-2 pr-2 pl-41 shadow-md backdrop-blur-[1px] sm:pr-3 sm:pl-52 md:pl-56 md:pr-4">
         <div className="flex min-w-0 max-w-full flex-nowrap items-center justify-end gap-x-2 sm:gap-x-3 md:gap-4">
+          <SfxTopBarControl />
           <Link
             href={profileHref(characterName)}
             className="min-w-0 max-w-[min(9rem,32vw)] truncate text-sm font-medium text-white/95 underline decoration-white/35 underline-offset-4 hover:text-white hover:decoration-white/55 sm:max-w-[min(11rem,38vw)]"
@@ -44,17 +47,20 @@ export function GameTopBar({
 
           <div className="hidden shrink-0 items-center gap-2 md:flex md:gap-3">
             {showDebugReset ? (
-              <form
-                action={debugResetCharacterAction}
-                title="Level 1, base stats, town, 25 gold, 4 tonics, no gear or loot"
-              >
-                <button
-                  type="submit"
-                  className="rounded-lg border border-white/20 bg-black/55 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-200/95 hover:border-amber-700/50 hover:bg-black/70 sm:px-3 sm:text-xs"
+              <>
+                <DebugLevelUpPreview previewLevel={Math.min(characterLevel + 1, 999)} />
+                <form
+                  action={debugResetCharacterAction}
+                  title="Level 1, base stats, town, 25 gold, 4 tonics, no gear or loot"
                 >
-                  Debug reset
-                </button>
-              </form>
+                  <button
+                    type="submit"
+                    className="rounded-lg border border-white/20 bg-black/55 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-200/95 hover:border-amber-700/50 hover:bg-black/70 sm:px-3 sm:text-xs"
+                  >
+                    Debug reset
+                  </button>
+                </form>
+              </>
             ) : null}
             <form action={logoutAction}>
               <button
@@ -74,14 +80,19 @@ export function GameTopBar({
             <div className="absolute right-0 top-[calc(100%+0.375rem)] z-[70] min-w-46 rounded-xl border border-white/20 bg-linear-to-b from-zinc-950/98 to-black/98 p-2 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.85)] ring-1 ring-white/10 backdrop-blur-md">
               <div className="flex flex-col gap-2">
                 {showDebugReset ? (
-                  <form action={debugResetCharacterAction} title="Level 1, base stats, town, 25 gold, 4 tonics, no gear or loot">
-                    <button
-                      type="submit"
-                      className="w-full rounded-lg border border-white/20 bg-black/55 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-amber-200/95 hover:border-amber-700/50 hover:bg-black/70 active:bg-black/75"
-                    >
-                      Debug reset
-                    </button>
-                  </form>
+                  <div className="flex flex-col gap-2 border-b border-white/10 pb-2">
+                    <div className="px-0.5">
+                      <DebugLevelUpPreview previewLevel={Math.min(characterLevel + 1, 999)} />
+                    </div>
+                    <form action={debugResetCharacterAction} title="Level 1, base stats, town, 25 gold, 4 tonics, no gear or loot">
+                      <button
+                        type="submit"
+                        className="w-full rounded-lg border border-white/20 bg-black/55 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-amber-200/95 hover:border-amber-700/50 hover:bg-black/70 active:bg-black/75"
+                      >
+                        Debug reset
+                      </button>
+                    </form>
+                  </div>
                 ) : null}
                 <form action={logoutAction}>
                   <button

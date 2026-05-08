@@ -55,13 +55,16 @@ export const ADVENTURE_REGIONS: Record<string, AdventureRegionConfig> = {
     goldChance: 0.07,
     potionChance: 0.06,
     xpChance: 0.07,
-    combatEnemies: [{ key: "gloom_jackal", weight: 1 }],
+    combatEnemies: [
+      { key: "gloom_jackal", weight: 0.52 },
+      { key: "ash_crawler", weight: 0.48 },
+    ],
     eliteEnemies: [
       { key: "tomb_revenant", weight: 0.5 },
       { key: "cave_imp", weight: 0.3 },
       { key: "ruins_colossus", weight: 0.2 },
     ],
-    eliteChance: 0.14,
+    eliteChance: 0.25,
     goldMin: 10,
     goldMax: 24,
   },
@@ -75,7 +78,7 @@ export const ADVENTURE_REGIONS: Record<string, AdventureRegionConfig> = {
       { key: "bone_knight", weight: 0.45 },
     ],
     eliteEnemies: [{ key: "grave_warden", weight: 1 }],
-    eliteChance: 0.14,
+    eliteChance: 0.25,
     goldMin: 14,
     goldMax: 32,
   },
@@ -141,6 +144,10 @@ const COMBAT_FLAVOR: Record<string, string[]> = {
     "Ancient masonry lurches to life. A colossal guardian bars your path.",
   ],
   gloom_jackal: ["A jackal built for the dark slips from the rubble.", "Low growl — a gloom jackal claims this hall."],
+  ash_crawler: [
+    "Chitin scrapes mortar — an ash crawler scuttles from a collapsed fresco.",
+    "Many legs, no patience — a ruins beetle sizes you up for a meal.",
+  ],
   tomb_revenant: [
     "Armor clatters — a revenant knight rises, blade humming with spite!",
     "Cold breath fogs your visor — an elite tomb guardian has found you.",

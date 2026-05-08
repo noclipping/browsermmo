@@ -1,4 +1,5 @@
 import { equipItemAction, unequipSlotAction } from "@/app/actions/game";
+import Link from "next/link";
 import { EQUIPMENT_SLOTS, HEALTH_POTION_ITEM_KEY } from "@/lib/game/constants";
 import { requiredXpForLevel } from "@/lib/game/progression";
 import { itemDisplayName } from "@/lib/game/item-display";
@@ -7,6 +8,7 @@ import { rarityNameClass } from "@/lib/game/item-rarity-styles";
 import { displayTitleForEquippedKey } from "@/lib/game/achievements";
 import { portraitForClass } from "@/lib/game/portraits";
 import type { Character, CharacterEquipment, InventoryItem, Item } from "@prisma/client";
+import { ConsumeTonicForm } from "@/components/consume-tonic-form";
 import { ItemHoverCard } from "@/components/item-hover-card";
 import { LoadoutGearPack } from "@/components/loadout-gear-pack";
 
@@ -99,6 +101,14 @@ export async function AdventureLoadoutPanel({
           </div>
         </div>
         <p className="text-white">🪙 Gold {character.gold}</p>
+        {character.statPoints > 0 ? (
+          <div className="mt-1 rounded border border-amber-700/60 bg-amber-950/30 px-2 py-1 text-[11px] text-amber-100">
+            <span className="font-semibold">Unspent points: {character.statPoints}</span>{" "}
+            <Link href="/character" className="underline decoration-amber-500/80 hover:text-amber-200">
+              Spend on Character page
+            </Link>
+          </div>
+        ) : null}
         <p className="mt-1 text-[11px] text-zinc-200/95">
           💪 STR {effective.strength} · ❤️ CON {effective.constitution} · 🔮 INT {effective.intelligence} · 🏹 DEX {effective.dexterity}
         </p>
@@ -117,24 +127,22 @@ export async function AdventureLoadoutPanel({
           </span>
         </div>
         {consumeTonicAction ? (
-          <form action={consumeTonicAction} className="mt-2">
-            <button
-              type="submit"
-              disabled={!canUseTonic}
-              className="w-full rounded border border-emerald-800/60 bg-emerald-950/40 px-2 py-1 text-[11px] font-semibold text-emerald-200 enabled:hover:bg-emerald-900/35 disabled:cursor-not-allowed disabled:opacity-40"
-              title={
-                combatLocked
-                  ? "Cannot use tonic during active battle."
-                  : tonicCount < 1
-                    ? "No tonics in pack."
-                    : character.hp >= character.maxHp
-                      ? "Already at full HP."
-                      : "Consume one tonic to heal now."
-              }
-            >
-              Drink tonic ({tonicCount})
-            </button>
-          </form>
+          <ConsumeTonicForm
+            action={consumeTonicAction}
+            disabled={!canUseTonic}
+            className="w-full rounded border border-emerald-800/60 bg-emerald-950/40 px-2 py-1 text-[11px] font-semibold text-emerald-200 enabled:hover:bg-emerald-900/35 disabled:cursor-not-allowed disabled:opacity-40"
+            title={
+              combatLocked
+                ? "Cannot use tonic during active battle."
+                : tonicCount < 1
+                  ? "No tonics in pack."
+                  : character.hp >= character.maxHp
+                    ? "Already at full HP."
+                    : "Consume one tonic to heal now."
+            }
+          >
+            Drink tonic ({tonicCount})
+          </ConsumeTonicForm>
         ) : null}
       </div>
 
