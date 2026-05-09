@@ -7,6 +7,7 @@ import {
   returnToTownAndShopAction,
 } from "@/app/actions/game";
 import { AchievementToastPostActionDrain } from "@/components/achievement-toast-post-action-drain";
+import { AdventureTravelTabButton } from "@/components/adventure-travel-tab-button";
 import { AdventureLoadoutPanel } from "@/components/adventure-loadout-panel";
 import { MobileAdventureOverlays } from "@/components/mobile-adventure-overlays";
 import { ADVENTURE_REGIONS } from "@/lib/game/adventure";
@@ -150,8 +151,7 @@ export default async function AdventurePage({
                         ? `Reach level ${region.minLevel} (or unlock more regions by leveling: Lv 4, Lv 8).`
                         : undefined;
                       return (
-                        <button
-                          type="submit"
+                        <AdventureTravelTabButton
                           disabled={combatLocked || !canTravel}
                           title={
                             combatLocked
@@ -171,7 +171,7 @@ export default async function AdventurePage({
                           </span>
                           {region.name}
                           <span className="text-zinc-500"> · rec. Lv {region.minLevel}+</span>
-                        </button>
+                        </AdventureTravelTabButton>
                       );
                     })()}
                   </form>
