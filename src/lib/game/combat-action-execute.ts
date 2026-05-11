@@ -53,6 +53,7 @@ export type CombatActionSuccessBody =
       status: "ACTIVE";
       round: number;
       enemyIntent: string;
+      enemyKey: string;
       enemyKind: "normal" | "elite" | "miniboss";
       player: { hp: number; maxHp: number };
       enemy: { name: string; emoji: string; level: number; hp: number; maxHp: number };
@@ -471,6 +472,7 @@ export async function executeCombatAction(
         status: "ACTIVE",
         round: state.round,
         enemyIntent: nextIntent,
+        enemyKey: enemy.key,
         enemyKind: enemyKindFromRow(enemy),
         player: { hp: state.playerHp, maxHp: state.playerMaxHp },
         enemy: { name: enemy.name, emoji: enemy.emoji, level: enemy.level, hp: state.enemyHp, maxHp: state.enemyMaxHp },

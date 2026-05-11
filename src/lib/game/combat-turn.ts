@@ -118,9 +118,9 @@ export function intentTelegraphLine(intent: EnemyIntent, enemyShortName: string)
     case "ATTACK":
       return `🔥 ${enemyShortName} works into a fury — damage will spike on their next hit, not this one.`;
     case "STRIKE":
-      return `⚔ ${enemyShortName} lines up a clean strike after you act.`;
+      return `⚔️ ${enemyShortName} lines up a clean strike after you act.`;
     case "HEAVY_ATTACK":
-      return `💥 ${enemyShortName} winds up a heavy strike — brace now.`;
+      return `⚔️⚔️ ${enemyShortName} winds up a heavy strike — brace now.`;
     case "GUARD":
       return `🛡 ${enemyShortName} braces and steels themselves — your next blows will scrape armor they did not have this round.`;
     case "RECOVER":
@@ -266,32 +266,6 @@ function addLaneDamage(mile: CombatRoundMilestoneAgg, lane: "melee" | "magic" | 
 
 function hardenArmorAmount(state: TurnEncounterState): number {
   return HARDEN_ARMOR_BASE + Math.floor(state.enemyDefense * HARDEN_ARMOR_PER_ENEMY_DEF);
-}
-
-function enemyChipAfterUtility(
-  state: TurnEncounterState,
-  playerDefending: boolean,
-  lines: string[],
-  shadowActive: boolean,
-): TurnEncounterState {
-  const chip = Math.random() < 0.28;
-  if (!chip) {
-    lines.push("They keep pressure tight but do not commit a full swing.");
-    return state;
-  }
-  if (shadowActive) {
-    lines.push("🌑 Shadow Veil phases you through the probing hit.");
-    return state;
-  }
-  let { damage } = rollDamage(Math.floor(state.enemyAttack * 0.32), state.playerDefense, 0);
-  if (playerDefending) {
-    const raw = damage;
-    damage = Math.max(1, Math.floor(damage * 0.45));
-    lines.push(`A probing nick still finds you — your guard trims ${raw} → ${damage}.`);
-  } else {
-    lines.push(`A quick nick clips you for ${damage}.`);
-  }
-  return { ...state, playerHp: Math.max(0, state.playerHp - damage) };
 }
 
 /**
@@ -453,7 +427,7 @@ export function resolveCombatRound(params: {
       `${params.enemyLabel} roars — Enrage stacks. Next hit damage ×${nextMult.toFixed(2)} (was ×${state.enemyPendingDamageMult.toFixed(2)}).`,
     );
     state = { ...state, enemyPendingDamageMult: nextMult };
-    return finish(enemyChipAfterUtility(state, playerDefending, lines, shadowActive));
+    return finish(state);
   }
 
   if (intent === "GUARD") {
@@ -463,7 +437,7 @@ export function resolveCombatRound(params: {
       `${params.enemyLabel} Hardens — your next damaging action faces +${nextArmor} effective armor against these blows.`,
     );
     state = { ...state, enemyPendingArmorVsPlayer: nextArmor };
-    return finish(enemyChipAfterUtility(state, playerDefending, lines, shadowActive));
+    return finish(state);
   }
 
   // STRIKE or HEAVY_ATTACK — damage turn; consume pending enrage mult.

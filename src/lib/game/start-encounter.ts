@@ -23,6 +23,7 @@ export type SoloEncounterStartJson = {
   encounterId: string;
   round: number;
   enemyIntent: string;
+  enemyKey: string;
   enemyKind: EnemyKind;
   enemy: { name: string; emoji: string; level: number; hp: number; maxHp: number };
   player: { name: string; hp: number; maxHp: number };
@@ -275,6 +276,7 @@ export function toStartResponse(
     encounterId: encounter.id,
     round: encounter.round,
     enemyIntent: encounter.enemyIntent,
+    enemyKey: enemy.key,
     enemyKind: enemyKindFromRow(enemy),
     enemy: {
       name: enemy.name,

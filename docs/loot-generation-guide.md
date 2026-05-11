@@ -104,7 +104,7 @@ Drop tables are standardized by enemy type with rarity-bucket targets:
 
 ### COMMON enemies
 
-- COMMON: 5.0%
+- COMMON: 35.0%
 - UNCOMMON: 2.5%
 - RARE: 0.9%
 - EPIC: 0.25%
@@ -113,7 +113,7 @@ Drop tables are standardized by enemy type with rarity-bucket targets:
 
 ### ELITE enemies
 
-- COMMON: 7.0%
+- COMMON: 35.0%
 - UNCOMMON: 4.0%
 - RARE: 1.8%
 - EPIC: 0.65%
@@ -122,7 +122,7 @@ Drop tables are standardized by enemy type with rarity-bucket targets:
 
 ### BOSS enemies
 
-- COMMON: 12.0%
+- COMMON: 35.0%
 - UNCOMMON: 8.0%
 - RARE: 4.0%
 - EPIC: 1.75%

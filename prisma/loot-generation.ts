@@ -7,10 +7,11 @@ export const LOOT_RARITIES: Rarity[] = ["COMMON", "UNCOMMON", "RARE", "EPIC", "L
 export const LOOT_CLASSES: WeaponClassKey[] = ["warrior", "ranger", "mage"];
 export const REQUIRED_CLASS_SLOTS: ItemSlot[] = ["WEAPON", "HELMET", "CHEST", "GLOVES", "BOOTS", "RING", "AMULET"];
 
+/** Per-rarity bucket targets; COMMON rarity uses a 35% floor across enemy tiers. */
 export const ENEMY_TYPE_RARITY_BUCKET_CHANCE: Record<EnemyDropType, Record<Rarity, number>> = {
-  COMMON: { COMMON: 0.05, UNCOMMON: 0.025, RARE: 0.009, EPIC: 0.0025, LEGENDARY: 0.0005, GODLY: 0.00005 },
-  ELITE: { COMMON: 0.07, UNCOMMON: 0.04, RARE: 0.018, EPIC: 0.0065, LEGENDARY: 0.0015, GODLY: 0.00015 },
-  BOSS: { COMMON: 0.12, UNCOMMON: 0.08, RARE: 0.04, EPIC: 0.0175, LEGENDARY: 0.006, GODLY: 0.00075 },
+  COMMON: { COMMON: 0.35, UNCOMMON: 0.025, RARE: 0.009, EPIC: 0.0025, LEGENDARY: 0.0005, GODLY: 0.00005 },
+  ELITE: { COMMON: 0.35, UNCOMMON: 0.04, RARE: 0.018, EPIC: 0.0065, LEGENDARY: 0.0015, GODLY: 0.00015 },
+  BOSS: { COMMON: 0.35, UNCOMMON: 0.08, RARE: 0.04, EPIC: 0.0175, LEGENDARY: 0.006, GODLY: 0.00075 },
 };
 
 export type ItemSeedLike = {

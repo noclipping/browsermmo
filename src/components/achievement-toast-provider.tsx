@@ -1,6 +1,5 @@
 "use client";
 
-import confetti from "canvas-confetti";
 import { usePathname } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -9,6 +8,7 @@ import {
   drainAchievementToastCookie,
   type AchievementUnlockDetail,
 } from "@/lib/achievement-toast-events";
+import { burstAchievementConfetti } from "@/lib/confetti-burst";
 import type { AchievementToastItem } from "@/lib/achievement-toast-types";
 
 /** Shorter than before (~5.2s); progress bar + auto-dismiss stay in sync via this constant. */
@@ -44,28 +44,6 @@ function AchievementToastProgressBar({ displayId, durationMs }: { displayId: num
   );
 }
 
-function burstConfetti() {
-  const count = 140;
-  const defaults = { origin: { y: 0.92 }, zIndex: 10080 };
-
-  confetti({
-    ...defaults,
-    particleCount: Math.floor(count * 0.35),
-    spread: 62,
-    startVelocity: 35,
-    scalar: 0.9,
-    colors: ["#fbbf24", "#fcd34d", "#fde68a", "#ffffff", "#a78bfa", "#34d399"],
-  });
-  confetti({
-    ...defaults,
-    particleCount: Math.floor(count * 0.25),
-    spread: 90,
-    startVelocity: 28,
-    scalar: 0.85,
-    colors: ["#f59e0b", "#fbbf24", "#fef3c7"],
-  });
-}
-
 export function AchievementToastProvider() {
   const pathname = usePathname();
   /** Increments on every `showItem` so the progress bar animation restarts for queued toasts (not only achievement key). */
@@ -93,7 +71,7 @@ export function AchievementToastProvider() {
       setCurrent(item);
       setOpen(true);
       requestAnimationFrame(() => {
-        burstConfetti();
+        burstAchievementConfetti();
         setVisible(true);
       });
       clearTimer();

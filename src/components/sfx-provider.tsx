@@ -34,6 +34,11 @@ const SFX_PATHS: Record<SfxKey, string> = {
   campfire: "/sfx/campfire.wav",
 };
 
+/** Multiplier on user SFX volume (0–1). Heavy Strike clip runs hot — keep it softer. */
+const SFX_RELATIVE_GAIN: Partial<Record<SfxKey, number>> = {
+  skill: 0.25,
+};
+
 const STORAGE_MUTE = "browsermmo-sfx-muted";
 const STORAGE_VOL = "browsermmo-sfx-volume";
 const PREFS_EVENT = "browsermmo-sfx-prefs";
@@ -107,6 +112,8 @@ function getClientPrefsSnapshot(): Prefs {
 
 type SfxCtx = {
   playSfx: (key: SfxKey) => void;
+  /** Play any `/public/...` URL with the same mute/volume prefs as keyed SFX. */
+  playSfxUrl: (url: string, relativeGain?: number) => void;
   muted: boolean;
   setMuted: Dispatch<SetStateAction<boolean>>;
   volume: number;
@@ -115,6 +122,7 @@ type SfxCtx = {
 
 const SfxContext = createContext<SfxCtx>({
   playSfx: () => {},
+  playSfxUrl: () => {},
   muted: false,
   setMuted: () => {},
   volume: 0.75,
@@ -155,7 +163,21 @@ export function SfxProvider({ children }: { children: React.ReactNode }) {
       const path = SFX_PATHS[key];
       if (!path) return;
       const audio = new Audio(path);
-      audio.volume = Math.min(1, Math.max(0, volume));
+      const gain = SFX_RELATIVE_GAIN[key] ?? 1;
+      audio.volume = Math.min(1, Math.max(0, volume * gain));
+      void audio.play().catch(() => {
+        /* missing file or autoplay policy */
+      });
+    },
+    [muted, volume],
+  );
+
+  const playSfxUrl = useCallback(
+    (url: string, relativeGain = 1) => {
+      if (typeof window === "undefined" || muted || !url) return;
+      const audio = new Audio(url);
+      const gain = Number.isFinite(relativeGain) ? Math.min(1, Math.max(0, relativeGain)) : 1;
+      audio.volume = Math.min(1, Math.max(0, volume * gain));
       void audio.play().catch(() => {
         /* missing file or autoplay policy */
       });
@@ -166,12 +188,13 @@ export function SfxProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<SfxCtx>(
     () => ({
       playSfx,
+      playSfxUrl,
       muted,
       setMuted,
       volume,
       setVolume,
     }),
-    [playSfx, muted, volume, setMuted, setVolume],
+    [playSfx, playSfxUrl, muted, volume, setMuted, setVolume],
   );
 
   return <SfxContext.Provider value={value}>{children}</SfxContext.Provider>;

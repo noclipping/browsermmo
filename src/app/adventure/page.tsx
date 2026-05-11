@@ -181,7 +181,10 @@ export default async function AdventurePage({
 
             <TurnCombatArena
               characterName={character.name}
+              characterClass={character.class}
+              regionKey={regionKey}
               regionName={currentRegion.name}
+              regionBannerSrc={regionBannerSrc}
               resumeCombat={resumeCombat}
               debugAdventureFromServer={debugAdventureFromServer}
             />
