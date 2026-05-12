@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { isValidPortraitForClass, portraitsForClass } from "@/lib/game/portraits";
 import { CLASS_BASE_STATS, CLASS_STARTING_ATTRIBUTES, EQUIPMENT_SLOTS, STAT_POINTS_ON_CREATE } from "@/lib/game/constants";
 import { rollOutskirtsBossInterval } from "@/lib/game/outskirts-boss";
+import { setForestBossCountersSql } from "@/lib/game/forest-edge-sql";
 import { setOutskirtsBossCountersSql } from "@/lib/game/outskirts-sql";
 
 const createCharacterSchema = z.object({
@@ -85,6 +86,7 @@ export async function createCharacterAction(
         data: { username: parsed.data.name },
       });
       await setOutskirtsBossCountersSql(tx, c.id, 0, rollOutskirtsBossInterval());
+      await setForestBossCountersSql(tx, c.id, 0, rollOutskirtsBossInterval());
       await tx.characterEquipment.createMany({ data: EQUIPMENT_SLOTS.map((slot) => ({ characterId: c.id, slot })) });
     });
   } catch {

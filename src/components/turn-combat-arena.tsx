@@ -697,7 +697,7 @@ export function TurnCombatArena({
     const isVictoryFinale = data.status === "ENDED" && data.outcome === "VICTORY";
     const playPlayerHurt = () => {
       const url = PLAYER_HURT_SFX_URLS[Math.floor(Math.random() * PLAYER_HURT_SFX_URLS.length)]!;
-      playSfxUrl(url);
+      playSfxUrl(url, 0.75);
     };
 
     if (data.status === "ACTIVE" || isVictoryFinale) {

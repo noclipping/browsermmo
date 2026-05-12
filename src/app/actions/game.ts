@@ -39,6 +39,7 @@ import {
 import { executeCombatAction, type CombatActionSuccessBody } from "@/lib/game/combat-action-execute";
 import { executeCombatFlee } from "@/lib/game/combat-flee-execute";
 import { rollOutskirtsBossInterval } from "@/lib/game/outskirts-boss";
+import { setForestBossCountersSql } from "@/lib/game/forest-edge-sql";
 import { setOutskirtsBossCountersSql } from "@/lib/game/outskirts-sql";
 import {
   addItemsSoldCountTx,
@@ -939,6 +940,7 @@ export async function debugResetCharacterAction() {
       },
     });
     await setOutskirtsBossCountersSql(tx, character.id, 0, rollOutskirtsBossInterval());
+    await setForestBossCountersSql(tx, character.id, 0, rollOutskirtsBossInterval());
     if (potion) {
       await tx.inventoryItem.create({ data: { characterId: character.id, itemId: potion.id, quantity: 3 } });
     }

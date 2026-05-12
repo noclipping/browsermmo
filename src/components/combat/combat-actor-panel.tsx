@@ -1,9 +1,25 @@
 import type { CombatFxItem, CombatFxTone } from "@/components/combat/combat-fx-types";
 import { ENEMY_DEATH_SQUASH_MS, JRPG_LUNGE_IN_MS } from "@/lib/game/combat-stage-motion";
-import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /** Fallback when `--meet-shift-x` is unset (must match `sm:` value on `CombatStage`). */
 const MEET_SHIFT_FALLBACK = "min(56vw,19rem)";
+
+/** Matches Tailwind `sm:` — mobile vs desktop actor trees are separate; splatter must only run on the visible one. */
+const SM_UP_MQ = "(min-width: 640px)";
+
+function subscribeSmUp(cb: () => void) {
+  if (typeof window === "undefined") return () => {};
+  const mq = window.matchMedia(SM_UP_MQ);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+}
+
+function getSmUpSnapshot() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia(SM_UP_MQ).matches;
+}
 
 /** Brief tint on the sprite when struck, defending, or healed (not full-arena). */
 export type CombatActorHitFlash = "damage" | "defend" | "heal";
@@ -55,6 +71,120 @@ type CombatActorPanelProps = {
 
 /** Visual column width: HP bar + text align to this; sprite scales inside the same width. */
 const ACTOR_COLUMN_WIDTH = "w-[min(78vw,12.5rem)] sm:w-[min(70vw,15rem)]";
+
+type SplatterSpeck = {
+  id: string;
+  tx: number;
+  ty: number;
+  rot: number;
+  w: number;
+  h: number;
+  delayMs: number;
+  durationMs: number;
+  bg: string;
+  br: string;
+};
+
+function randomSplatterSpecks(stageSide: "left" | "right"): SplatterSpeck[] {
+  const toward = stageSide === "left" ? 1 : -1;
+  const count = 11 + Math.floor(Math.random() * 7);
+  const palette = [
+    "rgba(220, 38, 38, 0.95)",
+    "rgba(185, 28, 28, 0.92)",
+    "rgba(153, 27, 27, 0.9)",
+    "rgba(127, 29, 29, 0.88)",
+    "rgba(254, 202, 202, 0.35)",
+    "rgba(69, 10, 10, 0.9)",
+  ];
+  const radii = ["35% 65% 40% 60% / 45% 55% 50% 50%", "55% 45% 60% 40% / 55% 45% 50% 50%", "50% 50% 35% 65% / 50% 50% 45% 55%", "40% 60% 55% 45% / 40% 60% 50% 50%"];
+  const out: SplatterSpeck[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const dist = 24 + Math.random() * 52;
+    const spread = (Math.random() - 0.5) * 1.15;
+    const upLift = -22 - Math.random() * 42;
+    const tx = toward * dist * (0.72 + Math.random() * 0.28) + (Math.random() - 0.5) * 20 + spread * 14;
+    const ty = upLift + (Math.random() - 0.5) * 28 + spread * 12;
+    out.push({
+      id: `s-${i}-${Math.random().toString(36).slice(2, 9)}`,
+      tx,
+      ty,
+      rot: (Math.random() - 0.5) * 220,
+      w: 5 + Math.random() * 8,
+      h: 4 + Math.random() * 9,
+      delayMs: Math.floor(Math.random() * 40),
+      durationMs: 320 + Math.floor(Math.random() * 200),
+      bg: palette[Math.floor(Math.random() * palette.length)] ?? palette[0],
+      br: radii[Math.floor(Math.random() * radii.length)] ?? "50%",
+    });
+  }
+  return out;
+}
+
+/** Short blood-like specks when `shakeGen` bumps (damage hits only in parent). */
+function HitDamageSplatter({
+  shakeGen,
+  stageSide,
+  layoutKey,
+  reduceMotion,
+}: {
+  shakeGen: number;
+  stageSide: "left" | "right";
+  layoutKey: "mobile" | "desktop";
+  reduceMotion: boolean;
+}) {
+  const [specks, setSpecks] = useState<SplatterSpeck[]>([]);
+  const prevShakeRef = useRef(shakeGen);
+  const smUp = useSyncExternalStore(subscribeSmUp, getSmUpSnapshot, () => false);
+  const layoutVisible = layoutKey === "desktop" ? smUp : !smUp;
+
+  useEffect(() => {
+    const prev = prevShakeRef.current;
+    if (shakeGen < prev) {
+      prevShakeRef.current = shakeGen;
+      setSpecks([]);
+      return;
+    }
+    if (shakeGen === prev) return;
+    prevShakeRef.current = shakeGen;
+    if (reduceMotion) return;
+    if (!layoutVisible) return;
+    setSpecks(randomSplatterSpecks(stageSide));
+    const t = window.setTimeout(() => setSpecks([]), 680);
+    return () => window.clearTimeout(t);
+  }, [shakeGen, stageSide, reduceMotion, layoutVisible]);
+
+  if (!specks.length) return null;
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 isolate overflow-visible"
+      style={{ zIndex: 40 }}
+      aria-hidden
+    >
+      {specks.map((s) => (
+        <div
+          key={s.id}
+          className="combat-hit-splatter-speck absolute"
+          style={
+            {
+              left: "50%",
+              top: "52%",
+              width: `${s.w}px`,
+              height: `${s.h}px`,
+              background: s.bg,
+              borderRadius: s.br,
+              boxShadow: "0 0 4px rgba(0,0,0,0.55), 0 0 10px rgba(220,38,38,0.25)",
+              "--spl-tx": `${s.tx}px`,
+              "--spl-ty": `${s.ty}px`,
+              "--spl-rot": `${s.rot}deg`,
+              animationDuration: `${s.durationMs}ms`,
+              animationDelay: `${s.delayMs}ms`,
+            } as CSSProperties
+          }
+        />
+      ))}
+    </div>
+  );
+}
 
 function ActorHpBar({ current, max, gradientClass }: { current: number; max: number; gradientClass: string }) {
   const pct = max > 0 ? Math.min(100, Math.round((current / max) * 100)) : 0;
@@ -217,6 +347,12 @@ export function CombatActorPanel({
               flipSprite ? { transform: "scaleX(-1)", transformOrigin: "50% 100%" } : undefined
             }
             draggable={false}
+          />
+          <HitDamageSplatter
+            shakeGen={shakeGen}
+            stageSide={stageSide}
+            layoutKey={layoutKey}
+            reduceMotion={reduceMotion}
           />
         </div>
         {(() => {

@@ -380,6 +380,12 @@ model Character {
   outskirtsWinsSinceBoss Int          @default(0)
   /** After this many outskirts wins, the next combat spawn is the miniboss. */
   outskirtsBossAt        Int          @default(4)
+  /** Wins in Forest Edge since last Tree Ent miniboss (victory vs non-miniboss forest enemies). */
+  forestWinsSinceBoss          Int @default(0)
+  /** After this many forest wins, the next combat spawn is the Tree Ent miniboss. */
+  forestBossAt                 Int @default(4)
+  /** Consecutive wins vs dire_wolf only — at 3+, next forest spawn is Alpha (unless boss gate fires). */
+  forestConsecutiveDireWolfWins Int @default(0)
   /** Last time free town campfire rest was used (2m cooldown between uses). */
   lastFreeRestAt DateTime?
   regionId       String

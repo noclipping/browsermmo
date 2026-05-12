@@ -34,6 +34,12 @@ import { addItemQuantityCapped } from "@/lib/game/inventory-potions";
 import { rollAffixesForItem } from "@/lib/game/item-affixes";
 import { applyXp } from "@/lib/game/progression";
 import { rollOutskirtsBossInterval } from "@/lib/game/outskirts-boss";
+import {
+  incrementForestDireWolfStreakSql,
+  incrementForestWinsSql,
+  resetForestDireWolfStreakSql,
+  setForestBossCountersSql,
+} from "@/lib/game/forest-edge-sql";
 import { incrementOutskirtsWinsSql, setOutskirtsBossCountersSql } from "@/lib/game/outskirts-sql";
 import { enemyKindFromRow } from "@/lib/game/start-encounter";
 import { computeFleeChance } from "@/lib/game/combat-flee-execute";
@@ -584,10 +590,23 @@ export async function executeCombatAction(
     const achievementKeys = await prisma.$transaction(async (tx) => {
       await tx.character.update({ where: { id: character.id }, data: charUpdate });
       if (reg?.key === "town_outskirts") {
-        if (enemy.isAdventureMiniBoss) {
+        if (enemy.isAdventureMiniBoss && enemy.key === "sewer_fencer") {
           await setOutskirtsBossCountersSql(tx, character.id, 0, rollOutskirtsBossInterval());
-        } else {
+        } else if (!enemy.isAdventureMiniBoss) {
           await incrementOutskirtsWinsSql(tx, character.id);
+        }
+      }
+      if (reg?.key === "forest_edge") {
+        if (enemy.isAdventureMiniBoss && enemy.key === "forest_tree_ent") {
+          await setForestBossCountersSql(tx, character.id, 0, rollOutskirtsBossInterval());
+          await resetForestDireWolfStreakSql(tx, character.id);
+        } else {
+          await incrementForestWinsSql(tx, character.id);
+          if (enemy.key === "dire_wolf") {
+            await incrementForestDireWolfStreakSql(tx, character.id);
+          } else {
+            await resetForestDireWolfStreakSql(tx, character.id);
+          }
         }
       }
       for (const itemId of droppedItemIds) {
@@ -762,10 +781,15 @@ export async function executeCombatAction(
         ...(town ? { region: { connect: { id: town.id } } } : {}),
       },
     });
-    // If you lose in Town Outskirts, reset boss progress so you aren't forced
-    // straight back into the miniboss check without rebuilding momentum.
-    if (enemy.isAdventureMiniBoss) {
+    // If you lose to a region miniboss, reset that region's boss gate so you can rebuild momentum.
+    if (enemyRegionKey === "town_outskirts" && enemy.isAdventureMiniBoss && enemy.key === "sewer_fencer") {
       await setOutskirtsBossCountersSql(tx, character.id, 0, rollOutskirtsBossInterval());
+    }
+    if (enemyRegionKey === "forest_edge" && enemy.isAdventureMiniBoss && enemy.key === "forest_tree_ent") {
+      await setForestBossCountersSql(tx, character.id, 0, rollOutskirtsBossInterval());
+    }
+    if (enemyRegionKey === "forest_edge") {
+      await resetForestDireWolfStreakSql(tx, character.id);
     }
     await tx.combatLog.create({
       data: { characterId: character.id, enemyId: enemy.id, outcome: "LOSS", turns: state.round, log, xpGained, goldGained: 0 },

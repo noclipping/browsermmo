@@ -24,6 +24,7 @@ import {
   STAT_POINTS_PER_LEVEL,
 } from "@/lib/game/constants";
 import { applyXp } from "@/lib/game/progression";
+import { resetForestDireWolfStreakSql, setForestBossCountersSql } from "@/lib/game/forest-edge-sql";
 import { rollOutskirtsBossInterval } from "@/lib/game/outskirts-boss";
 import { setOutskirtsBossCountersSql } from "@/lib/game/outskirts-sql";
 import { xpForOutcome } from "@/lib/game/combat-rewards";
@@ -139,8 +140,18 @@ async function handleFleeDefeat(
         ...(town ? { region: { connect: { id: town.id } } } : {}),
       },
     });
-    if (encounter.enemy.isAdventureMiniBoss) {
+    if (encounter.enemy.isAdventureMiniBoss && encounter.enemy.key === "sewer_fencer") {
       await setOutskirtsBossCountersSql(tx, character.id, 0, rollOutskirtsBossInterval());
+    }
+    if (encounter.enemy.isAdventureMiniBoss && encounter.enemy.key === "forest_tree_ent") {
+      await setForestBossCountersSql(tx, character.id, 0, rollOutskirtsBossInterval());
+    }
+    if (
+      encounter.enemy.key === "dire_wolf" ||
+      encounter.enemy.key === "alpha_dire_wolf" ||
+      encounter.enemy.key === "forest_tree_ent"
+    ) {
+      await resetForestDireWolfStreakSql(tx, character.id);
     }
     await tx.combatLog.create({
       data: {
@@ -181,7 +192,7 @@ async function handleFleeDefeat(
 export async function executeCombatFlee(character: Character, encounterId: string): Promise<CombatFleeExecuteResult> {
   const encounter = await prisma.soloCombatEncounter.findFirst({
     where: { id: encounterId, characterId: character.id, status: "ACTIVE" },
-    include: { enemy: true },
+    include: { enemy: { include: { region: { select: { key: true } } } } },
   });
   if (!encounter) return { ok: false, error: "No active encounter.", httpStatus: 400 };
   if (encounter.playerHp <= 0) {
@@ -301,6 +312,9 @@ export async function executeCombatFlee(character: Character, encounterId: strin
       where: { id: character.id },
       data: { hp: Math.max(1, encounter.playerHp) },
     });
+    if (encounter.enemy.region?.key === "forest_edge") {
+      await resetForestDireWolfStreakSql(tx, character.id);
+    }
     await tx.soloCombatEncounter.delete({ where: { id: encounter.id } });
   });
   logCombatTelemetry({

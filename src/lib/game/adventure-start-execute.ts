@@ -18,6 +18,11 @@ import {
   STAT_POINTS_PER_LEVEL,
 } from "@/lib/game/constants";
 import { addItemQuantityCapped } from "@/lib/game/inventory-potions";
+import {
+  readForestBossState,
+  readForestDireWolfStreak,
+  resetForestDireWolfStreakSql,
+} from "@/lib/game/forest-edge-sql";
 import { readOutskirtsBossState } from "@/lib/game/outskirts-sql";
 import { applyXp, scaleXpGain } from "@/lib/game/progression";
 import { addLifetimeGoldEarnedTx } from "@/lib/game/milestone-achievements";
@@ -307,6 +312,17 @@ export async function executeAdventureStart(character: Character): Promise<Adven
   if (region.key === "town_outskirts") {
     const { wins, bossAt } = await readOutskirtsBossState(prisma, character.id);
     if (wins >= bossAt) enemyKey = "sewer_fencer";
+  } else if (region.key === "forest_edge") {
+    const { wins, bossAt } = await readForestBossState(prisma, character.id);
+    if (wins >= bossAt) {
+      enemyKey = "forest_tree_ent";
+    } else {
+      const streak = await readForestDireWolfStreak(prisma, character.id);
+      if (streak >= 3) {
+        enemyKey = "alpha_dire_wolf";
+        await resetForestDireWolfStreakSql(prisma, character.id);
+      }
+    }
   }
   if (!enemyKey) enemyKey = rollCombatEnemyKey(region.key);
   if (!enemyKey) {

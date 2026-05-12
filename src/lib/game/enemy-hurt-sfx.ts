@@ -13,16 +13,23 @@ const TOWN_OUTSKIRTS_HURT: Record<string, string> = {
 
 const FOREST_EDGE_HURT: Record<string, string> = {
   dire_wolf: "/sfx/hurt_sounds/forest_edge/dire_wolf_hurt.wav",
+  alpha_dire_wolf: "/sfx/hurt_sounds/forest_edge/dire_wolf_hurt.wav",
+  forest_tree_ent: "/sfx/hurt_sounds/forest_edge/tree_ent_hurt.wav",
 };
 
 /** Extra multiplier on global SFX volume for specific clips (0–1). */
 const TOWN_OUTSKIRTS_RELATIVE_GAIN: Partial<Record<string, number>> = {
-  gutter_cur: 0.5,
+  sewer_rat: 0.5,
+  ditch_scrapper: 0.25,
+  sewer_fencer: 0.5,
+  gutter_cur: 0.375,
   plague_burrower: 0.5,
 };
 
 const FOREST_EDGE_RELATIVE_GAIN: Partial<Record<string, number>> = {
   dire_wolf: 0.25,
+  alpha_dire_wolf: 0.25,
+  forest_tree_ent: 0.5,
 };
 
 export type EnemyHurtSfxSpec = { url: string; relativeGain: number };

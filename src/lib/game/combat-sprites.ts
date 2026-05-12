@@ -10,17 +10,29 @@ export type PlayerSpritePose = "idle" | "attack";
 const DEFAULT_ENEMY_SPRITE_PREFIX = "sewer-rat";
 
 /** Bump when replacing files under `public/sprites/enemies/` so clients drop stale cached PNGs. */
-const ENEMY_SPRITE_CACHE_QUERY = "?v=6";
+const ENEMY_SPRITE_CACHE_QUERY = "?v=9";
 
-/** Region subfolders under `/public/sprites/enemies/{folder}/` (see `town_outskirts/`). */
+/** Region subfolders under `/public/sprites/enemies/{folder}/`. */
 const ENEMY_SPRITE_FOLDER_BY_REGION: Partial<Record<string, string>> = {
   town_outskirts: "town_outskirts",
   forest_edge: "forest_edge",
+  ancient_ruins: "ancient_ruins",
+  murk_catacombs: "murk_catacombs",
 };
 
-/** Files named `{prefix}_{pose}.png` instead of `{prefix}-{pose}.png` (DB key → prefix stem). */
-const ENEMY_SPRITE_UNDERSCORE_POSE: Record<string, string> = {
-  dire_wolf: "dire_wolf",
+/**
+ * Regions where art uses `{stem}_{idle|attack}.png` under the region folder.
+ * `town_outskirts` uses hyphenated stems instead (`sewer-rat-idle.png`, …).
+ */
+const ENEMY_SPRITE_REGION_USES_UNDERSCORE_POSE = new Set([
+  "forest_edge",
+  "ancient_ruins",
+  "murk_catacombs",
+]);
+
+/** DB `Enemy.key` → filename stem when it differs from the key (underscore regions only). */
+const ENEMY_SPRITE_STEM_OVERRIDE: Record<string, string> = {
+  forest_tree_ent: "tree_ent",
 };
 
 /**
@@ -43,12 +55,17 @@ export function getEnemySpritePath(
   /** Adventure / encounter region (`town_outskirts` uses the regional sprite subfolder). */
   regionKey?: string | null,
 ): string {
-  const underscoreStem = ENEMY_SPRITE_UNDERSCORE_POSE[enemyKey];
-  const prefix = underscoreStem ?? ENEMY_SPRITE_PREFIX_BY_KEY[enemyKey] ?? DEFAULT_ENEMY_SPRITE_PREFIX;
-  const folder = regionKey ? ENEMY_SPRITE_FOLDER_BY_REGION[regionKey] : undefined;
+  const folderKey = regionKey ?? undefined;
+  const folder = folderKey ? ENEMY_SPRITE_FOLDER_BY_REGION[folderKey] : undefined;
   const sub = folder ? `${folder}/` : "";
-  const sep = underscoreStem ? "_" : "-";
-  return `/sprites/enemies/${sub}${prefix}${sep}${pose}.png${ENEMY_SPRITE_CACHE_QUERY}`;
+
+  if (folderKey && ENEMY_SPRITE_REGION_USES_UNDERSCORE_POSE.has(folderKey)) {
+    const stem = ENEMY_SPRITE_STEM_OVERRIDE[enemyKey] ?? enemyKey;
+    return `/sprites/enemies/${sub}${stem}_${pose}.png${ENEMY_SPRITE_CACHE_QUERY}`;
+  }
+
+  const prefix = ENEMY_SPRITE_PREFIX_BY_KEY[enemyKey] ?? DEFAULT_ENEMY_SPRITE_PREFIX;
+  return `/sprites/enemies/${sub}${prefix}-${pose}.png${ENEMY_SPRITE_CACHE_QUERY}`;
 }
 
 /** Asset filename prefix before `-idle.png` / `-attack.png`. Expand when mage/rogue art lands. */
